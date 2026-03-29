@@ -95,7 +95,7 @@ function App() {
   return (
     <div className="app-container">
       <Header 
-        sessionName={"HARRY'S PITDECK"} 
+        sessionName={"HARRY'S PITWALL"} 
         isLive={viewMode === 'LIVE'} 
       />
       

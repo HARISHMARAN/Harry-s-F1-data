@@ -69,7 +69,6 @@ export async function fetchHistoricalData(year?: string, round?: string) {
 
     let maxBestLap = '--:--.---';
     let maxGrid = '--';
-    let maxPos = '--';
 
     const mappedLeaderboard = results.map((r: any) => {
       const code = r.Driver.code || 'UKN';
