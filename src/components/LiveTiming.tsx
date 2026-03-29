@@ -13,15 +13,16 @@ interface DriverPosition {
 
 interface LiveTimingProps {
   data: DriverPosition[];
+  title?: string;
 }
 
-export default function LiveTiming({ data }: LiveTimingProps) {
+export default function LiveTiming({ data, title = "Live Timing & Intervals" }: LiveTimingProps) {
   if (!data || data.length === 0) {
     return (
       <div className="glass-panel col-span-8">
         <div className="panel-header">
           <Trophy size={18} color="var(--accent-f1)" />
-          <h2 className="panel-title">Live Timing & Intervals</h2>
+          <h2 className="panel-title">{title}</h2>
         </div>
         <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '3rem' }}>
           NO TIMING DATA AVAILABLE FOR THIS SESSION.
@@ -34,7 +35,7 @@ export default function LiveTiming({ data }: LiveTimingProps) {
     <div className="glass-panel col-span-8">
       <div className="panel-header">
         <Trophy size={18} color="var(--accent-f1)" />
-        <h2 className="panel-title">Live Timing & Intervals</h2>
+        <h2 className="panel-title">{title}</h2>
       </div>
       
       <div className="timing-table-wrapper">

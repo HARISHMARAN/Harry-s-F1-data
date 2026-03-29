@@ -266,3 +266,39 @@ h1, h2, h3, h4, h5, h6 {
     grid-template-columns: 1fr;
   }
 }
+
+/* Mode Toggle Switch */
+.mode-toggle {
+  display: flex;
+  background-color: var(--bg-tertiary);
+  border-radius: 20px;
+  padding: 4px;
+  width: max-content;
+  border: 1px solid var(--border-light);
+  margin-bottom: 1rem;
+}
+
+.toggle-btn {
+  padding: 0.5rem 1.5rem;
+  border-radius: 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.toggle-btn.active {
+  background-color: var(--accent-f1);
+  color: #fff;
+  box-shadow: 0 0 10px var(--accent-f1-glow);
+}
+
+.toggle-btn.active-hist {
+  background-color: var(--accent-blue);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(0, 147, 204, 0.3);
+}
