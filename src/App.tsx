@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Header from './components/Header';
 import LiveTiming from './components/LiveTiming';
 import SessionInfo from './components/SessionInfo';
+import MaxTracker from './components/MaxTracker';
 import { fetchLiveDashboardData } from './services/openf1';
 import { AlertCircle } from 'lucide-react';
 import './index.css';
@@ -9,10 +10,11 @@ import './index.css';
 function App() {
   const [session, setSession] = useState<any>(null);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [maxStats, setMaxStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Poll for data every 30 seconds
+  // Poll for data every 5 seconds
   useEffect(() => {
     let intervalId: any;
 
@@ -23,6 +25,7 @@ function App() {
         if (data) {
           setSession(data.session);
           setLeaderboard(data.leaderboard);
+          setMaxStats(data.max_stats);
         }
       } catch (err: any) {
         console.error("Dashboard failed to load live data:", err);
@@ -63,6 +66,12 @@ function App() {
         <main className="dashboard-grid">
           {leaderboard && <LiveTiming data={leaderboard} />}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            {/* MAX VERSTAPPEN DEDICATED TRACKER */}
+            {session && <MaxTracker 
+              currentPos={leaderboard.find(d => d.name_acronym === 'VER')?.position || null}
+              gap={leaderboard.find(d => d.name_acronym === 'VER')?.date || null}
+              stats={maxStats}
+            />}
             {/* NEW LIVE LAP TRACKER BOX */}
             {session && (
               <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

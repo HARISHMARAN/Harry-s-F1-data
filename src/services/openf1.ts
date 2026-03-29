@@ -44,6 +44,21 @@ export async function fetchLiveDashboardData() {
         |> last()
     `;
 
+    // Max Verstappen Telemetry
+    const maxLapQuery = `
+      from(bucket: "data")
+        |> range(start: -3h)
+        |> filter(fn: (r) => r["_measurement"] == "lastLapTime" and r["driver"] == "VER")
+        |> min()
+    `;
+
+    const maxSpeedQuery = `
+      from(bucket: "data")
+        |> range(start: -3h)
+        |> filter(fn: (r) => r["_measurement"] == "speedTrap" and r["driver"] == "VER")
+        |> max()
+    `;
+
     const requestOptions = {
       method: "POST",
       headers: {
@@ -53,9 +68,11 @@ export async function fetchLiveDashboardData() {
       }
     };
 
-    const [response, lapsResponse] = await Promise.all([
+    const [response, lapsResponse, maxLapResponse, maxSpeedResponse] = await Promise.all([
       fetch(INFLUX_URL, { ...requestOptions, body: fluxQuery }),
-      fetch(INFLUX_URL, { ...requestOptions, body: lapsQuery })
+      fetch(INFLUX_URL, { ...requestOptions, body: lapsQuery }),
+      fetch(INFLUX_URL, { ...requestOptions, body: maxLapQuery }),
+      fetch(INFLUX_URL, { ...requestOptions, body: maxSpeedQuery })
     ]);
 
     if (!response.ok) {
@@ -126,6 +143,55 @@ export async function fetchLiveDashboardData() {
       };
     });
 
+    // Parse Max's Best Lap
+    let maxBestLap = 0;
+    if (maxLapResponse.ok) {
+       const lapCsv = await maxLapResponse.text();
+       const mLines = lapCsv.trim().split(/\r?\n/);
+       if (mLines.length > 1) {
+         const headers = mLines[0].split(',');
+         const valIdx = headers.indexOf('_value');
+         if (valIdx > -1) {
+            for (let i = 1; i < mLines.length; i++) {
+              const cols = mLines[i].split(',');
+              if (cols.length > valIdx) {
+                const val = parseFloat(cols[valIdx]);
+                if (val > 0) maxBestLap = val;
+              }
+            }
+         }
+       }
+    }
+
+    // Parse Max's Top Speed
+    let maxTopSpeed = 0;
+    if (maxSpeedResponse.ok) {
+       const spCsv = await maxSpeedResponse.text();
+       const sLines = spCsv.trim().split(/\r?\n/);
+       if (sLines.length > 1) {
+         const headers = sLines[0].split(',');
+         const valIdx = headers.indexOf('_value');
+         if (valIdx > -1) {
+            for (let i = 1; i < sLines.length; i++) {
+              const cols = sLines[i].split(',');
+              if (cols.length > valIdx) {
+                const val = parseInt(cols[valIdx], 10);
+                if (val > 0) maxTopSpeed = val;
+              }
+            }
+         }
+       }
+    }
+
+    // Format Best Lap Function (seconds to M:SS.MMM)
+    const formatLapTime = (sec: number) => {
+      if (!sec) return '0.00';
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      const ms = Math.floor((sec % 1) * 1000);
+      return `${m}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+    };
+
     // Provide generic session info since InfluxDB only streams raw driver metrics, not schedule metadata
     return {
       session: {
@@ -138,7 +204,13 @@ export async function fetchLiveDashboardData() {
         date_start: new Date().toISOString(),
         current_lap: currentLap
       },
-      leaderboard: mappedLeaderboard
+      leaderboard: mappedLeaderboard,
+      max_stats: {
+        best_lap: formatLapTime(maxBestLap),
+        top_speed: maxTopSpeed.toString(),
+        started: 'API RESTRICTED',
+        tyres: 'API RESTRICTED'
+      }
     };
 
   } catch (err) {
