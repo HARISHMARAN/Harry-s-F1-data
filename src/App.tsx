@@ -43,7 +43,7 @@ function App() {
   return (
     <div className="app-container">
       <Header 
-        sessionName={session ? session.session_name : 'F1'} 
+        sessionName={"HARRY'S PITDECK"} 
         isLive={true} 
       />
       

@@ -18,63 +18,54 @@ interface LiveTimingProps {
 export default function LiveTiming({ data }: LiveTimingProps) {
   if (!data || data.length === 0) {
     return (
-      <div className="glass-panel col-span-8 p-6" style={{ padding: '24px' }}>
-        <h2 className="card-title">
-          <Trophy size={20} />
-          Live Timing & Positions
-        </h2>
-        <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>
-          No timing data available for this session.
+      <div className="glass-panel col-span-8">
+        <div className="panel-header">
+          <Trophy size={18} color="var(--accent-f1)" />
+          <h2 className="panel-title">Live Timing & Intervals</h2>
+        </div>
+        <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '3rem' }}>
+          NO TIMING DATA AVAILABLE FOR THIS SESSION.
         </div>
       </div>
     );
   }
 
   return (
-    <div className="glass-panel col-span-8" style={{ padding: '24px' }}>
-      <h2 className="card-title">
-        <Trophy size={20} />
-        Live Timing & Positions
-      </h2>
+    <div className="glass-panel col-span-8">
+      <div className="panel-header">
+        <Trophy size={18} color="var(--accent-f1)" />
+        <h2 className="panel-title">Live Timing & Intervals</h2>
+      </div>
       
-      <div style={{ overflowX: 'auto' }}>
-        <table className="data-table">
+      <div className="timing-table-wrapper">
+        <table className="timing-table">
           <thead>
             <tr>
-              <th>POS</th>
+              <th style={{ width: '60px' }}>POS</th>
               <th>DRIVER</th>
               <th>TEAM</th>
-              <th style={{ textAlign: 'right' }}>LAST UPDATE</th>
+              <th style={{ textAlign: 'right' }}>INTERVAL</th>
             </tr>
           </thead>
           <tbody>
-            {data.slice(0, 10).map((row) => (
-              <tr key={row.driver_number}>
-                <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  {row.position}
-                </td>
+            {data.map((row) => (
+              <tr key={row.name_acronym} className="timing-row">
+                <td className="pos-column">{row.position}</td>
                 <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div className="driver-info">
                     <div 
-                      style={{ 
-                        width: '4px', 
-                        height: '16px', 
-                        backgroundColor: row.team_colour,
-                        borderRadius: '2px'
-                      }} 
+                      className="color-bar" 
+                      style={{ backgroundColor: row.team_colour }} 
                     />
-                    <span className="driver-number">{row.driver_number}</span>
+                    <span className="driver-no">{row.driver_number}</span>
                     <span className="driver-name">{row.full_name}</span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '4px' }}>
-                      ({row.name_acronym})
-                    </span>
                   </div>
                 </td>
                 <td>
-                  <span className="driver-team">{row.team_name}</span>
+                  <span className="team-name">{row.team_name}</span>
                 </td>
-                <td style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                  {new Date(row.date).toLocaleTimeString()}
+                <td className={`time-column ${row.date === 'LEADER' ? 'time-leader' : 'time-val'}`}>
+                  {row.date}
                 </td>
               </tr>
             ))}
