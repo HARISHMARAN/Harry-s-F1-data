@@ -74,15 +74,27 @@ def main(year=None, round_number=None, playback_speed=1, session_type='R', visib
     circuit_rotation = get_circuit_rotation(session)
     
     # Prepare session info for display banner
+    try:
+        event_date = session.event.get('EventDate', '')
+        event_date_str = event_date.strftime('%B %d, %Y') if pd.notnull(event_date) else ''
+    except Exception:
+        event_date_str = ''
+    
+    # Safely compute circuit length
+    try:
+        circuit_length = float(example_lap["Distance"].max()) if example_lap is not None and "Distance" in example_lap else 5000.0
+    except Exception:
+        circuit_length = 5000.0
+
     session_info = {
         'event_name': session.event.get('EventName', ''),
-        'circuit_name': session.event.get('Location', ''),  # Circuit location/name
+        'circuit_name': session.event.get('Location', ''),
         'country': session.event.get('Country', ''),
         'year': year,
         'round': round_number,
-        'date': session.event.get('EventDate', '').strftime('%B %d, %Y') if session.event.get('EventDate') else '',
+        'date': event_date_str,
         'total_laps': race_telemetry['total_laps'],
-        'circuit_length_m': float(example_lap["Distance"].max()) if example_lap is not None and "Distance" in example_lap else None,
+        'circuit_length_m': circuit_length,
     }
 
     # Launch insights menu (always shown with replay)
