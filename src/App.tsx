@@ -3,6 +3,7 @@ import Header from './components/Header';
 import LiveTiming from './components/LiveTiming';
 import SessionInfo from './components/SessionInfo';
 import MaxTracker from './components/MaxTracker';
+import AddonLibrary from './components/AddonLibrary';
 import { fetchLiveDashboardData } from './services/openf1';
 import { fetchHistoricalData, fetchSeasonRaces } from './services/jolpica';
 import { AlertCircle } from 'lucide-react';
@@ -14,7 +15,7 @@ interface SeasonRace {
 }
 
 function App() {
-  const [viewMode, setViewMode] = useState<'LIVE' | 'HISTORICAL'>('LIVE');
+  const [viewMode, setViewMode] = useState<'LIVE' | 'HISTORICAL' | 'ADDONS'>('LIVE');
   const [session, setSession] = useState<any>(null);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [maxStats, setMaxStats] = useState<any>(null);
@@ -114,6 +115,13 @@ function App() {
           >
             HISTORICAL ARCHIVE
           </button>
+          <button 
+            className={`toggle-btn ${viewMode === 'ADDONS' ? 'active' : ''}`}
+            style={{ backgroundColor: viewMode === 'ADDONS' ? 'var(--text-muted)' : 'transparent', boxShadow: viewMode === 'ADDONS' ? '0 0 10px rgba(140, 140, 148, 0.3)' : 'none' }}
+            onClick={() => setViewMode('ADDONS')}
+          >
+            ADD-ON LIBRARY
+          </button>
         </div>
       </div>
 
@@ -149,7 +157,9 @@ function App() {
         </div>
       )}
 
-      {loading ? (
+      {viewMode === 'ADDONS' ? (
+        <AddonLibrary />
+      ) : loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
           <div className="pulsing-dot" style={{ width: 24, height: 24 }} />
         </div>
