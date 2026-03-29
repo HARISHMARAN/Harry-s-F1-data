@@ -4,9 +4,14 @@ import LiveTiming from './components/LiveTiming';
 import SessionInfo from './components/SessionInfo';
 import MaxTracker from './components/MaxTracker';
 import { fetchLiveDashboardData } from './services/openf1';
-import { fetchHistoricalData } from './services/jolpica';
+import { fetchHistoricalData, fetchSeasonRaces } from './services/jolpica';
 import { AlertCircle } from 'lucide-react';
 import './index.css';
+
+interface SeasonRace {
+  round: string;
+  raceName: string;
+}
 
 function App() {
   const [viewMode, setViewMode] = useState<'LIVE' | 'HISTORICAL'>('LIVE');
@@ -16,7 +21,29 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Unified data loader depending on mode
+  // Historical selection states
+  const [selectedYear, setSelectedYear] = useState<string>('2026');
+  const [selectedRound, setSelectedRound] = useState<string | null>(null);
+  const [seasonRaces, setSeasonRaces] = useState<SeasonRace[]>([]);
+
+  // Effect to load calendar whenever the year changes
+  useEffect(() => {
+    if (viewMode === 'HISTORICAL') {
+      const fetchCalendar = async () => {
+        const races = await fetchSeasonRaces(selectedYear);
+        setSeasonRaces(races);
+        // Default to the first race or clear round to fetch 'last' if default
+        if (selectedYear === new Date().getFullYear().toString()) {
+            setSelectedRound(null); // 'last' completed
+        } else if (races.length > 0) {
+            setSelectedRound(races[0].round);
+        }
+      };
+      fetchCalendar();
+    }
+  }, [selectedYear, viewMode]);
+
+  // Unified data loader depending on mode and selections
   useEffect(() => {
     let intervalId: any;
     setLoading(true);
@@ -29,7 +56,8 @@ function App() {
         if (viewMode === 'LIVE') {
           data = await fetchLiveDashboardData();
         } else {
-          data = await fetchHistoricalData();
+          // If selectedRound is null, it naturally falls back to the backend default
+          data = await fetchHistoricalData(selectedYear, selectedRound || undefined);
         }
 
         if (data) {
@@ -40,12 +68,19 @@ function App() {
       } catch (err: any) {
         console.error("Dashboard failed to load data:", err);
         setErrorMsg(err.message || "Failed to load OpenF1 data.");
+        setSession(null);
+        setLeaderboard([]);
       } finally {
         setLoading(false);
       }
     };
 
-    loadData();
+    // Don't fetch if we're in historical mode but haven't resolved the calendar yet (unless we're fetching default)
+    if (viewMode === 'HISTORICAL' && !selectedRound && selectedYear !== new Date().getFullYear().toString() && seasonRaces.length === 0) {
+      // WAIT FOR CALENDAR
+    } else {
+      loadData();
+    }
 
     // Only set up a polling interval for live data
     if (viewMode === 'LIVE') {
@@ -55,7 +90,7 @@ function App() {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [viewMode]);
+  }, [viewMode, selectedYear, selectedRound, seasonRaces.length]);
 
   return (
     <div className="app-container">
@@ -82,6 +117,38 @@ function App() {
         </div>
       </div>
 
+      {/* Historical Race Selectors */}
+      {viewMode === 'HISTORICAL' && (
+        <div className="historical-controls">
+          <select 
+            className="race-selector"
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(e.target.value)}
+          >
+            <option value="2026">2026 Season</option>
+            <option value="2025">2025 Season</option>
+            <option value="2024">2024 Season</option>
+          </select>
+
+          {seasonRaces.length > 0 && (
+            <select 
+              className="race-selector"
+              value={selectedRound || ""}
+              onChange={(e) => setSelectedRound(e.target.value)}
+            >
+              {selectedYear === new Date().getFullYear().toString() && (
+                 <option value="">Latest Completed Race</option>
+              )}
+              {seasonRaces.map((race) => (
+                <option key={race.round} value={race.round}>
+                  R{race.round} - {race.raceName}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
           <div className="pulsing-dot" style={{ width: 24, height: 24 }} />
@@ -89,7 +156,7 @@ function App() {
       ) : errorMsg ? (
         <div className="glass-panel" style={{ padding: '2rem', textAlign: 'center', borderColor: 'var(--accent-f1)' }}>
           <AlertCircle size={48} color="var(--accent-f1)" style={{ margin: '0 auto 1rem auto' }} />
-          <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>API Access Restricted</h2>
+          <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>DATA UNAVAILABLE</h2>
           <p style={{ color: 'var(--text-secondary)', maxWidth: '600px', margin: '0 auto', lineHeight: '1.6' }}>
             {errorMsg}
           </p>

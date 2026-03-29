@@ -1,7 +1,5 @@
 // Fetching historical completed race data from Jolpica (Ergast replacement)
 
-const JOLPICA_BASE = 'https://api.jolpi.ca/ergast/f1/current/last/results.json';
-
 // Reuse the native D_LOOKUP to attach correct team colors
 const D_LOOKUP: Record<string, any> = {
   'VER': { color: '#3671C6', name: 'Max Verstappen' },
@@ -33,15 +31,39 @@ const D_LOOKUP: Record<string, any> = {
   'ANT': { color: '#27F4D2', name: 'Andrea Kimi Antonelli' },
 };
 
-export async function fetchHistoricalData() {
+export async function fetchSeasonRaces(year: string) {
   try {
-    const response = await fetch(JOLPICA_BASE);
+    const response = await fetch(`https://api.jolpi.ca/ergast/f1/${year}.json`);
+    if (!response.ok) throw new Error("Jolpica API Failed");
+
+    const json = await response.json();
+    const races = json.MRData.RaceTable.Races || [];
+    
+    return races.map((r: any) => ({
+      round: r.round,
+      raceName: r.raceName
+    }));
+  } catch (err) {
+    console.error("Failed to fetch season races", err);
+    return [];
+  }
+}
+
+export async function fetchHistoricalData(year?: string, round?: string) {
+  try {
+    // Determine the precise endpoint
+    let endpoint = 'https://api.jolpi.ca/ergast/f1/current/last/results.json';
+    if (year && round) {
+      endpoint = `https://api.jolpi.ca/ergast/f1/${year}/${round}/results.json`;
+    }
+
+    const response = await fetch(endpoint);
     if (!response.ok) throw new Error("Jolpica API Failed");
 
     const json = await response.json();
     const race = json.MRData.RaceTable.Races[0];
     
-    if (!race) throw new Error("No race data found");
+    if (!race) throw new Error("No completed race data found for this selection.");
 
     const results = race.Results;
 
