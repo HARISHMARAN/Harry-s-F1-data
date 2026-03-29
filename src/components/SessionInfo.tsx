@@ -1,18 +1,8 @@
-import React from 'react';
 import { Calendar, MapPin, Flag } from 'lucide-react';
-
-interface SessionData {
-  session_name: string;
-  session_type: string;
-  country_name: string;
-  location: string;
-  circuit_short_name: string;
-  date_start: string;
-  date_end: string;
-}
+import type { DashboardSession } from '../types/f1';
 
 interface SessionInfoProps {
-  session: SessionData;
+  session: DashboardSession;
 }
 
 export default function SessionInfo({ session }: SessionInfoProps) {
@@ -32,7 +22,7 @@ export default function SessionInfo({ session }: SessionInfoProps) {
           <h3 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
             {session.session_name}
           </h3>
-          <p style={{ color: 'var(--accent-primary)', fontWeight: 500 }}>
+          <p style={{ color: 'var(--accent-blue)', fontWeight: 500 }}>
             {session.session_type}
           </p>
         </div>

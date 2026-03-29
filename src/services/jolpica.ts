@@ -1,7 +1,66 @@
-// Fetching historical completed race data from Jolpica (Ergast replacement)
+import type { DashboardData, DriverPosition, SeasonRace } from '../types/f1';
 
-// Reuse the native D_LOOKUP to attach correct team colors
-const D_LOOKUP: Record<string, any> = {
+interface DriverLookupEntry {
+  color: string;
+  name: string;
+}
+
+interface JolpicaSeasonResponse {
+  MRData: {
+    RaceTable: {
+      Races: SeasonRace[];
+    };
+  };
+}
+
+interface JolpicaResult {
+  position: string;
+  number: string;
+  grid: string;
+  status: string;
+  Time?: {
+    time: string;
+  };
+  FastestLap?: {
+    Time?: {
+      time: string;
+    };
+  };
+  Driver: {
+    code?: string;
+    givenName: string;
+    familyName: string;
+  };
+  Constructor: {
+    name: string;
+  };
+}
+
+interface JolpicaRace {
+  round: string;
+  raceName: string;
+  date: string;
+  time?: string;
+  Circuit: {
+    circuitId: string;
+    circuitName: string;
+    Location: {
+      country: string;
+    };
+  };
+  Results: JolpicaResult[];
+}
+
+interface JolpicaResultsResponse {
+  MRData: {
+    RaceTable: {
+      Races: JolpicaRace[];
+    };
+  };
+}
+
+// Fetching historical completed race data from Jolpica (Ergast replacement)
+const D_LOOKUP: Record<string, DriverLookupEntry> = {
   'VER': { color: '#3671C6', name: 'Max Verstappen' },
   'PER': { color: '#AAAAAD', name: 'Sergio Perez' },
   'HAM': { color: '#E8002D', name: 'Lewis Hamilton' },
@@ -31,65 +90,66 @@ const D_LOOKUP: Record<string, any> = {
   'ANT': { color: '#27F4D2', name: 'Andrea Kimi Antonelli' },
 };
 
-export async function fetchSeasonRaces(year: string) {
+export async function fetchSeasonRaces(year: string): Promise<SeasonRace[]> {
   try {
     const response = await fetch(`https://api.jolpi.ca/ergast/f1/${year}.json`);
-    if (!response.ok) throw new Error("Jolpica API Failed");
+    if (!response.ok) {
+      throw new Error('Jolpica API Failed');
+    }
 
-    const json = await response.json();
-    const races = json.MRData.RaceTable.Races || [];
-    
-    return races.map((r: any) => ({
-      round: r.round,
-      raceName: r.raceName
-    }));
-  } catch (err) {
-    console.error("Failed to fetch season races", err);
+    const json = (await response.json()) as JolpicaSeasonResponse;
+    return json.MRData.RaceTable.Races || [];
+  } catch (err: unknown) {
+    console.error('Failed to fetch season races', err);
     return [];
   }
 }
 
-export async function fetchHistoricalData(year?: string, round?: string) {
+export async function fetchHistoricalData(year?: string, round?: string): Promise<DashboardData> {
   try {
-    // Determine the precise endpoint
     let endpoint = 'https://api.jolpi.ca/ergast/f1/current/last/results.json';
+
     if (year && round) {
       endpoint = `https://api.jolpi.ca/ergast/f1/${year}/${round}/results.json`;
     }
 
     const response = await fetch(endpoint);
-    if (!response.ok) throw new Error("Jolpica API Failed");
+    if (!response.ok) {
+      throw new Error('Jolpica API Failed');
+    }
 
-    const json = await response.json();
+    const json = (await response.json()) as JolpicaResultsResponse;
     const race = json.MRData.RaceTable.Races[0];
-    
-    if (!race) throw new Error("No completed race data found for this selection.");
 
-    const results = race.Results;
+    if (!race) {
+      throw new Error('No completed race data found for this selection.');
+    }
 
     let maxBestLap = '--:--.---';
     let maxGrid = '--';
 
-    const mappedLeaderboard = results.map((r: any) => {
-      const code = r.Driver.code || 'UKN';
-      const meta = D_LOOKUP[code] || { color: '#ffffff', name: `${r.Driver.givenName} ${r.Driver.familyName}` };
+    const mappedLeaderboard: DriverPosition[] = race.Results.map((result) => {
+      const code = result.Driver.code || 'UKN';
+      const meta = D_LOOKUP[code] || {
+        color: '#ffffff',
+        name: `${result.Driver.givenName} ${result.Driver.familyName}`,
+      };
 
-      // Extract Max Verstappen logic
       if (code === 'VER') {
-        maxGrid = r.grid;
-        if (r.FastestLap && r.FastestLap.Time) {
-          maxBestLap = r.FastestLap.Time.time;
+        maxGrid = result.grid;
+        if (result.FastestLap?.Time?.time) {
+          maxBestLap = result.FastestLap.Time.time;
         }
       }
 
       return {
-        position: parseInt(r.position, 10),
-        driver_number: parseInt(r.number, 10),
+        position: parseInt(result.position, 10),
+        driver_number: parseInt(result.number, 10),
         name_acronym: code,
         full_name: meta.name,
-        team_name: r.Constructor.name,
+        team_name: result.Constructor.name,
         team_colour: meta.color,
-        date: r.status === "Finished" && r.Time ? r.Time.time : r.status
+        date: result.status === 'Finished' && result.Time ? result.Time.time : result.status,
       };
     });
 
@@ -97,24 +157,23 @@ export async function fetchHistoricalData(year?: string, round?: string) {
       session: {
         session_key: race.round,
         session_name: race.raceName,
-        session_type: "Historical Race",
+        session_type: 'Historical Race',
         country_name: race.Circuit.Location.country,
         location: race.Circuit.circuitName,
         circuit_short_name: race.Circuit.circuitId,
         date_start: `${race.date}T${race.time || '00:00:00Z'}`,
-        current_lap: 'FINISHED'
+        current_lap: 'FINISHED',
       },
       leaderboard: mappedLeaderboard,
       max_stats: {
         best_lap: maxBestLap,
         top_speed: 'UNAVAILABLE',
         started: `P${maxGrid}`,
-        tyres: 'STATIC DATA'
-      }
+        tyres: 'STATIC DATA',
+      },
     };
-
-  } catch (err) {
-    console.error("Jolpica api failed", err);
-    throw new Error("Unable to load latest completed race from Jolpica.");
+  } catch (err: unknown) {
+    console.error('Jolpica api failed', err);
+    throw new Error('Unable to load latest completed race from Jolpica.');
   }
 }

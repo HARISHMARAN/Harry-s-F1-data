@@ -1,15 +1,31 @@
-import React from 'react';
-import { Terminal, Database, MessageSquare, LineChart, Code } from 'lucide-react';
+import type { ReactElement } from 'react';
+import { Terminal, Gauge, MessageSquare, LineChart, Code } from 'lucide-react';
 
-const ADDONS = [
+interface AddonLibraryProps {
+  onOpenReplay: () => void;
+}
+
+interface AddonDefinition {
+  id: string;
+  name: string;
+  author: string;
+  description: string;
+  icon: ReactElement;
+  stack: string[];
+  cmd: string;
+  embedded?: boolean;
+}
+
+const ADDONS: AddonDefinition[] = [
   {
     id: 'f1-race-replay',
     name: 'F1 Race Replay',
-    author: 'IAmTomShaw',
-    description: 'An interactive Formula 1 race visualisation and data analysis tool built natively with PySide6 and Arcade.',
-    icon: <Database size={24} color="var(--accent-f1)" />,
-    stack: ['Python', 'PySide6', 'FastF1', 'Arcade'],
-    cmd: 'cd addons/f1-race-replay && pip install -r requirements.txt && python3 main.py'
+    author: "Harry's Pitwall",
+    description: 'A browser-native race replay embedded directly into localhost using OpenF1 session, lap, race-control, and position data.',
+    icon: <Gauge size={24} color="var(--accent-f1)" />,
+    stack: ['React', 'TypeScript', 'OpenF1', 'SVG'],
+    embedded: true,
+    cmd: 'Built into the dashboard. Open the Race Replay tab to use it.'
   },
   {
     id: 'formula-chat',
@@ -40,7 +56,7 @@ const ADDONS = [
   }
 ];
 
-export default function AddonLibrary() {
+export default function AddonLibrary({ onOpenReplay }: AddonLibraryProps) {
   return (
     <div style={{ animation: 'fade-in 0.4s ease-out' }}>
       <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
@@ -48,7 +64,7 @@ export default function AddonLibrary() {
           MONOREPO ADD-ONS
         </h2>
         <p style={{ color: 'var(--text-secondary)', maxWidth: '600px', margin: '0 auto', lineHeight: '1.6' }}>
-          These powerful native Command Line & Desktop GUI utilities are stored statically within Harry's Pitwall inside the <code>addons/</code> directory. Copy their launch commands into your terminal to execute them natively alongside the dashboard!
+          The replay now runs first-class inside the dashboard, while the remaining tools still live under <code>addons/</code> for terminal-driven workflows.
         </p>
       </div>
 
@@ -79,10 +95,23 @@ export default function AddonLibrary() {
               ))}
             </div>
 
+            {addon.embedded ? (
+              <button
+                type="button"
+                className="replay-button"
+                onClick={onOpenReplay}
+                style={{ alignSelf: 'flex-start' }}
+              >
+                Open Replay In Dashboard
+              </button>
+            ) : null}
+
             <div style={{ background: 'rgba(0,0,0,0.5)', borderRadius: '8px', padding: '1rem', border: '1px solid var(--border-light)', marginTop: 'auto' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
                 <Terminal size={14} color="var(--text-muted)" />
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>LAUNCH COMMAND</span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                  {addon.embedded ? 'ACCESS MODE' : 'LAUNCH COMMAND'}
+                </span>
               </div>
               <code style={{ fontSize: '0.8rem', color: 'var(--accent-success)', wordBreak: 'break-all', fontFamily: 'monospace' }}>
                 {addon.cmd}

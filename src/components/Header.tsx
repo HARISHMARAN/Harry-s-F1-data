@@ -1,5 +1,4 @@
 import { Sparkles, Activity, Clock } from 'lucide-react';
-import React from 'react';
 
 interface HeaderProps {
   sessionName?: string;

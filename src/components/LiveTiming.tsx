@@ -1,15 +1,5 @@
-import React from 'react';
 import { Trophy } from 'lucide-react';
-
-interface DriverPosition {
-  position: number;
-  driver_number: number;
-  name_acronym: string;
-  full_name: string;
-  team_name: string;
-  team_colour: string;
-  date: string;
-}
+import type { DriverPosition } from '../types/f1';
 
 interface LiveTimingProps {
   data: DriverPosition[];

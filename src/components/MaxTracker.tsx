@@ -1,12 +1,5 @@
-import React from 'react';
-import { Target, Flag, Clock, Gauge, GaugeCircle, History } from 'lucide-react';
-
-interface MaxStats {
-  best_lap: string;
-  top_speed: string;
-  started: string;
-  tyres: string;
-}
+import { Target, Flag, Clock, Gauge, History } from 'lucide-react';
+import type { MaxStats } from '../types/f1';
 
 interface MaxTrackerProps {
   currentPos: number | null;

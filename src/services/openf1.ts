@@ -1,9 +1,18 @@
+import type { DashboardData, DriverPosition, MaxStats } from '../types/f1';
+
 // Fetching TRUE live timing data from the local InfluxDB powered by fastf1
 const INFLUX_URL = '/influx/api/v2/query?org=f1';
 const INFLUX_TOKEN = 'LoOFvHw1tUXrUZ8oUqaozmEjxxG9UNO5H5YfRI4cGu306xwQVu_KMNxRYRMrWbhdD886N2PuRgpo9v4v_58pHw==';
 
 // Static Data Lookup for drivers based on the f1-live-data importer schema
-const D_LOOKUP: Record<string, any> = {
+interface DriverLookupEntry {
+  no: number;
+  team: string;
+  color: string;
+  name: string;
+}
+
+const D_LOOKUP: Record<string, DriverLookupEntry> = {
   'ANT': { no: 12, team: 'Mercedes', color: '#27F4D2', name: 'Andrea Kimi Antonelli' },
   'RUS': { no: 63, team: 'Mercedes', color: '#27F4D2', name: 'George Russell' },
   'HAM': { no: 44, team: 'Ferrari', color: '#E8002D', name: 'Lewis Hamilton' },
@@ -28,7 +37,7 @@ const D_LOOKUP: Record<string, any> = {
   'BOT': { no: 77, team: 'Cadillac', color: '#AAAAAD', name: 'Valtteri Bottas' }
 };
 
-export async function fetchLiveDashboardData() {
+export async function fetchLiveDashboardData(): Promise<DashboardData> {
   try {
     const fluxQuery = `
       from(bucket: "data")
@@ -82,7 +91,7 @@ export async function fetchLiveDashboardData() {
     const csvData = await response.text();
     // Use regex to properly handle Windows CRLF line endings from InfluxDB
     const lines = csvData.trim().split(/\r?\n/);
-    const leaderboardData: any[] = [];
+    const leaderboardData: Array<{ driver: string; gap: number }> = [];
     
     // Parse Influx CSV: _,result,table,_start,_stop,_time,_value,_field,_measurement,driver
     // Starts at index 1 due to header. We dynamically locate `_value` and `driver` columns.
@@ -128,18 +137,28 @@ export async function fetchLiveDashboardData() {
 
     // Map to Dashboard UI objects
     let pos = 1;
-    const mappedLeaderboard = leaderboardData.map((d: any) => {
-      const meta = D_LOOKUP[d.driver] || { no: 0, team: 'Unknown', color: '#FFFFFF', name: d.driver };
+    const mappedLeaderboard: DriverPosition[] = leaderboardData.map((driverGap) => {
+      const meta = D_LOOKUP[driverGap.driver] ?? {
+        no: 0,
+        team: 'Unknown',
+        color: '#FFFFFF',
+        name: driverGap.driver,
+      };
       
       return {
         position: pos++,
         driver_number: meta.no,
-        name_acronym: d.driver,
+        name_acronym: driverGap.driver,
         full_name: meta.name,
         team_name: meta.team,
         team_colour: meta.color,
         // Hack: Display the gap float smoothly. We will use it as gap display in UI
-        date: d.gap === 0 ? "LEADER" : d.gap >= 500 ? "LAPPED" : "+" + d.gap.toFixed(3)
+        date:
+          driverGap.gap === 0
+            ? "LEADER"
+            : driverGap.gap >= 500
+              ? "LAPPED"
+              : "+" + driverGap.gap.toFixed(3)
       };
     });
 
@@ -192,6 +211,13 @@ export async function fetchLiveDashboardData() {
       return `${m}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
     };
 
+    const maxStats: MaxStats = {
+      best_lap: formatLapTime(maxBestLap),
+      top_speed: maxTopSpeed.toString(),
+      started: 'API RESTRICTED',
+      tyres: 'API RESTRICTED'
+    };
+
     // Provide generic session info since InfluxDB only streams raw driver metrics, not schedule metadata
     return {
       session: {
@@ -205,15 +231,10 @@ export async function fetchLiveDashboardData() {
         current_lap: currentLap
       },
       leaderboard: mappedLeaderboard,
-      max_stats: {
-        best_lap: formatLapTime(maxBestLap),
-        top_speed: maxTopSpeed.toString(),
-        started: 'API RESTRICTED',
-        tyres: 'API RESTRICTED'
-      }
+      max_stats: maxStats
     };
 
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("Local InfluxDB backend error:", err);
     throw new Error("Unable to connect to the fastf1 datastream. Please ensure Docker is running.");
   }

@@ -1,24 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Header from './components/Header';
 import LiveTiming from './components/LiveTiming';
 import SessionInfo from './components/SessionInfo';
 import MaxTracker from './components/MaxTracker';
 import AddonLibrary from './components/AddonLibrary';
+import RaceReplay from './components/RaceReplay';
 import { fetchLiveDashboardData } from './services/openf1';
 import { fetchHistoricalData, fetchSeasonRaces } from './services/jolpica';
 import { AlertCircle } from 'lucide-react';
+import type { DashboardData, DashboardSession, DriverPosition, MaxStats, SeasonRace } from './types/f1';
 import './index.css';
 
-interface SeasonRace {
-  round: string;
-  raceName: string;
-}
+type ViewMode = 'LIVE' | 'HISTORICAL' | 'REPLAY' | 'ADDONS';
 
 function App() {
-  const [viewMode, setViewMode] = useState<'LIVE' | 'HISTORICAL' | 'ADDONS'>('LIVE');
-  const [session, setSession] = useState<any>(null);
-  const [leaderboard, setLeaderboard] = useState<any[]>([]);
-  const [maxStats, setMaxStats] = useState<any>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('LIVE');
+  const [session, setSession] = useState<DashboardSession | null>(null);
+  const [leaderboard, setLeaderboard] = useState<DriverPosition[]>([]);
+  const [maxStats, setMaxStats] = useState<MaxStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -46,13 +45,19 @@ function App() {
 
   // Unified data loader depending on mode and selections
   useEffect(() => {
-    let intervalId: any;
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+
+    if (viewMode !== 'LIVE' && viewMode !== 'HISTORICAL') {
+      setLoading(false);
+      return undefined;
+    }
+
     setLoading(true);
 
     const loadData = async () => {
       try {
         setErrorMsg(null);
-        let data;
+        let data: DashboardData;
         
         if (viewMode === 'LIVE') {
           data = await fetchLiveDashboardData();
@@ -66,9 +71,9 @@ function App() {
           setLeaderboard(data.leaderboard);
           setMaxStats(data.max_stats);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Dashboard failed to load data:", err);
-        setErrorMsg(err.message || "Failed to load OpenF1 data.");
+        setErrorMsg(err instanceof Error ? err.message : "Failed to load OpenF1 data.");
         setSession(null);
         setLeaderboard([]);
       } finally {
@@ -116,6 +121,13 @@ function App() {
             HISTORICAL ARCHIVE
           </button>
           <button 
+            className={`toggle-btn ${viewMode === 'REPLAY' ? 'active' : ''}`}
+            style={{ backgroundColor: viewMode === 'REPLAY' ? 'rgba(0, 147, 204, 0.16)' : 'transparent', boxShadow: viewMode === 'REPLAY' ? '0 0 10px rgba(0, 147, 204, 0.25)' : 'none' }}
+            onClick={() => setViewMode('REPLAY')}
+          >
+            RACE REPLAY
+          </button>
+          <button 
             className={`toggle-btn ${viewMode === 'ADDONS' ? 'active' : ''}`}
             style={{ backgroundColor: viewMode === 'ADDONS' ? 'var(--text-muted)' : 'transparent', boxShadow: viewMode === 'ADDONS' ? '0 0 10px rgba(140, 140, 148, 0.3)' : 'none' }}
             onClick={() => setViewMode('ADDONS')}
@@ -158,7 +170,9 @@ function App() {
       )}
 
       {viewMode === 'ADDONS' ? (
-        <AddonLibrary />
+        <AddonLibrary onOpenReplay={() => setViewMode('REPLAY')} />
+      ) : viewMode === 'REPLAY' ? (
+        <RaceReplay />
       ) : loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
           <div className="pulsing-dot" style={{ width: 24, height: 24 }} />
