@@ -284,7 +284,13 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
         }
 
         setSessions(replaySessions);
-        setSelectedSessionKey(pickDefaultSession(replaySessions)?.session_key ?? null);
+        if (replaySessions.length > 0) {
+          setSelectedSessionKey(pickDefaultSession(replaySessions)?.session_key ?? null);
+        } else if (selectedYear === 2026) {
+          setSelectedYear(2025);
+        } else {
+          setSelectedSessionKey(null);
+        }
       } catch (error: unknown) {
         if (!ignore) {
           setErrorMsg(

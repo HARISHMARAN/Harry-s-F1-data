@@ -31,6 +31,11 @@ function App() {
     if (viewMode === 'HISTORICAL') {
       const fetchCalendar = async () => {
         const races = await fetchSeasonRaces(selectedYear);
+        if (races.length === 0 && selectedYear === '2026') {
+            console.log('No 2026 season data available yet, switching focus to 2025 archive.');
+            setSelectedYear('2025');
+            return;
+        }
         setSeasonRaces(races);
         // Default to the first race or clear round to fetch 'last' if default
         if (selectedYear === new Date().getFullYear().toString()) {
