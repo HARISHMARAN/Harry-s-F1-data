@@ -17,7 +17,7 @@ const D_LOOKUP: Record<string, DriverLookupEntry> = {
   'RUS': { no: 63, team: 'Mercedes', color: '#27F4D2', name: 'George Russell' },
   'HAM': { no: 44, team: 'Ferrari', color: '#E8002D', name: 'Lewis Hamilton' },
   'LEC': { no: 16, team: 'Ferrari', color: '#E8002D', name: 'Charles Leclerc' },
-  'VER': { no: 3,  team: 'Red Bull Racing', color: '#3671C6', name: 'Max Verstappen' },
+  'VER': { no: 1,  team: 'Red Bull Racing', color: '#3671C6', name: 'Max Verstappen' },
   'HAD': { no: 6,  team: 'Red Bull Racing', color: '#3671C6', name: 'Isack Hadjar' },
   'PIA': { no: 81, team: 'McLaren', color: '#FF8000', name: 'Oscar Piastri' },
   'NOR': { no: 1,  team: 'McLaren', color: '#FF8000', name: 'Lando Norris' },

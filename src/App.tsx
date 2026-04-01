@@ -1,112 +1,23 @@
-import { useEffect, useState } from 'react';
 import Header from './components/Header';
 import LiveTiming from './components/LiveTiming';
 import SessionInfo from './components/SessionInfo';
 import MaxTracker from './components/MaxTracker';
 import AddonLibrary from './components/AddonLibrary';
 import RaceReplay from './components/RaceReplay';
-import { fetchLiveDashboardData } from './services/openf1';
-import { fetchHistoricalData, fetchSeasonRaces } from './services/jolpica';
 import { AlertCircle } from 'lucide-react';
-import type { DashboardData, DashboardSession, DriverPosition, MaxStats, SeasonRace } from './types/f1';
+import { useDashboardData } from './hooks/useDashboardData';
+import { DASHBOARD_TITLE } from './constants';
+import { LeaderboardSkeleton } from './components/Skeleton';
 import './index.css';
 
-type ViewMode = 'LIVE' | 'HISTORICAL' | 'REPLAY' | 'ADDONS';
-
 function App() {
-  const [viewMode, setViewMode] = useState<ViewMode>('LIVE');
-  const [session, setSession] = useState<DashboardSession | null>(null);
-  const [leaderboard, setLeaderboard] = useState<DriverPosition[]>([]);
-  const [maxStats, setMaxStats] = useState<MaxStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // Historical selection states
-  const [selectedYear, setSelectedYear] = useState<string>('2026');
-  const [selectedRound, setSelectedRound] = useState<string | null>(null);
-  const [seasonRaces, setSeasonRaces] = useState<SeasonRace[]>([]);
-
-  // Effect to load calendar whenever the year changes
-  useEffect(() => {
-    if (viewMode === 'HISTORICAL') {
-      const fetchCalendar = async () => {
-        const races = await fetchSeasonRaces(selectedYear);
-        if (races.length === 0 && selectedYear === '2026') {
-            console.log('No 2026 season data available yet, switching focus to 2025 archive.');
-            setSelectedYear('2025');
-            return;
-        }
-        setSeasonRaces(races);
-        // Default to the first race or clear round to fetch 'last' if default
-        if (selectedYear === new Date().getFullYear().toString()) {
-            setSelectedRound(null); // 'last' completed
-        } else if (races.length > 0) {
-            setSelectedRound(races[0].round);
-        }
-      };
-      fetchCalendar();
-    }
-  }, [selectedYear, viewMode]);
-
-  // Unified data loader depending on mode and selections
-  useEffect(() => {
-    let intervalId: ReturnType<typeof setInterval> | undefined;
-
-    if (viewMode !== 'LIVE' && viewMode !== 'HISTORICAL') {
-      setLoading(false);
-      return undefined;
-    }
-
-    setLoading(true);
-
-    const loadData = async () => {
-      try {
-        setErrorMsg(null);
-        let data: DashboardData;
-        
-        if (viewMode === 'LIVE') {
-          data = await fetchLiveDashboardData();
-        } else {
-          // If selectedRound is null, it naturally falls back to the backend default
-          data = await fetchHistoricalData(selectedYear, selectedRound || undefined);
-        }
-
-        if (data) {
-          setSession(data.session);
-          setLeaderboard(data.leaderboard);
-          setMaxStats(data.max_stats);
-        }
-      } catch (err: unknown) {
-        console.error("Dashboard failed to load data:", err);
-        setErrorMsg(err instanceof Error ? err.message : "Failed to load OpenF1 data.");
-        setSession(null);
-        setLeaderboard([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // Don't fetch if we're in historical mode but haven't resolved the calendar yet (unless we're fetching default)
-    if (viewMode === 'HISTORICAL' && !selectedRound && selectedYear !== new Date().getFullYear().toString() && seasonRaces.length === 0) {
-      // WAIT FOR CALENDAR
-    } else {
-      loadData();
-    }
-
-    // Only set up a polling interval for live data
-    if (viewMode === 'LIVE') {
-      intervalId = setInterval(loadData, 5000);
-    }
-
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [viewMode, selectedYear, selectedRound, seasonRaces.length]);
+  const { state, dispatch } = useDashboardData();
+  const { viewMode, session, leaderboard, maxStats, loading, errorMsg, selectedYear, selectedRound, seasonRaces } = state;
 
   return (
     <div className="app-container">
       <Header 
-        sessionName={"HARRY'S PITWALL"} 
+        sessionName={DASHBOARD_TITLE} 
         isLive={viewMode === 'LIVE'} 
       />
       
@@ -115,27 +26,27 @@ function App() {
         <div className="mode-toggle">
           <button 
             className={`toggle-btn ${viewMode === 'LIVE' ? 'active' : ''}`}
-            onClick={() => setViewMode('LIVE')}
+            onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'LIVE' })}
           >
             ● LIVE TELEMETRY
           </button>
           <button 
             className={`toggle-btn ${viewMode === 'HISTORICAL' ? 'active-hist' : ''}`}
-            onClick={() => setViewMode('HISTORICAL')}
+            onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'HISTORICAL' })}
           >
             HISTORICAL ARCHIVE
           </button>
           <button 
             className={`toggle-btn ${viewMode === 'REPLAY' ? 'active' : ''}`}
             style={{ backgroundColor: viewMode === 'REPLAY' ? 'rgba(0, 147, 204, 0.16)' : 'transparent', boxShadow: viewMode === 'REPLAY' ? '0 0 10px rgba(0, 147, 204, 0.25)' : 'none' }}
-            onClick={() => setViewMode('REPLAY')}
+            onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'REPLAY' })}
           >
             RACE REPLAY
           </button>
           <button 
             className={`toggle-btn ${viewMode === 'ADDONS' ? 'active' : ''}`}
             style={{ backgroundColor: viewMode === 'ADDONS' ? 'var(--text-muted)' : 'transparent', boxShadow: viewMode === 'ADDONS' ? '0 0 10px rgba(140, 140, 148, 0.3)' : 'none' }}
-            onClick={() => setViewMode('ADDONS')}
+            onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'ADDONS' })}
           >
             ADD-ON LIBRARY
           </button>
@@ -148,7 +59,7 @@ function App() {
           <select 
             className="race-selector"
             value={selectedYear}
-            onChange={(e) => setSelectedYear(e.target.value)}
+            onChange={(e) => dispatch({ type: 'SET_YEAR', payload: e.target.value })}
           >
             <option value="2026">2026 Season</option>
             <option value="2025">2025 Season</option>
@@ -159,7 +70,7 @@ function App() {
             <select 
               className="race-selector"
               value={selectedRound || ""}
-              onChange={(e) => setSelectedRound(e.target.value)}
+              onChange={(e) => dispatch({ type: 'SET_ROUND', payload: e.target.value })}
             >
               {selectedYear === new Date().getFullYear().toString() && (
                  <option value="">Latest Completed Race</option>
@@ -175,12 +86,23 @@ function App() {
       )}
 
       {viewMode === 'ADDONS' ? (
-        <AddonLibrary onOpenReplay={() => setViewMode('REPLAY')} />
+        <AddonLibrary onOpenReplay={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'REPLAY' })} />
       ) : viewMode === 'REPLAY' ? (
         <RaceReplay />
       ) : loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-          <div className="pulsing-dot" style={{ width: 24, height: 24 }} />
+        <div className="dashboard-grid">
+           <div className="dashboard-column">
+              <LeaderboardSkeleton />
+           </div>
+           <div className="dashboard-column center-column" style={{ opacity: 0.3 }}>
+              <div className="glass-panel" style={{ height: '600px' }} />
+           </div>
+           <div className="dashboard-column right-sidebar" style={{ opacity: 0.3 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                 <div className="glass-panel" style={{ height: '240px' }} />
+                 <div className="glass-panel" style={{ height: '180px' }} />
+              </div>
+           </div>
         </div>
       ) : errorMsg ? (
         <div className="glass-panel" style={{ padding: '2rem', textAlign: 'center', borderColor: 'var(--accent-f1)' }}>
@@ -208,8 +130,8 @@ function App() {
                 <RaceReplay isEmbedded={true} />
                 <div style={{ position: 'absolute', top: '1rem', right: '1rem', pointerEvents: 'none' }}>
                    <div className="live-indicator" style={{ backdropFilter: 'blur(8px)' }}>
-                     <div className="pulsing-dot" />
-                     <span className="live-text">SIGNAL: NOMINAL</span>
+                      <div className="pulsing-dot" />
+                      <span className="live-text">SIGNAL: NOMINAL</span>
                    </div>
                 </div>
              </div>
@@ -219,11 +141,13 @@ function App() {
           <div className="dashboard-column right-sidebar">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               {/* MAX VERSTAPPEN DEDICATED TRACKER */}
-              {session && <MaxTracker 
-                currentPos={leaderboard.find(d => d.name_acronym === 'VER')?.position || null}
-                gap={leaderboard.find(d => d.name_acronym === 'VER')?.date || null}
-                stats={maxStats}
-              />}
+              {session && (
+                <MaxTracker 
+                  currentPos={leaderboard.find(d => d.name_acronym === 'VER')?.position || null}
+                  gap={leaderboard.find(d => d.name_acronym === 'VER')?.date || null}
+                  stats={maxStats}
+                />
+              )}
               
               {session && <SessionInfo session={session} />}
 
@@ -270,3 +194,4 @@ function App() {
 }
 
 export default App;
+

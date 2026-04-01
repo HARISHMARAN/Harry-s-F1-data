@@ -45,6 +45,7 @@ export interface ReplaySessionSummary {
   date_start: string;
   date_end: string;
   meeting_key: number;
+  circuit_key: number;
   circuit_short_name: string;
   country_name: string;
   location: string;
