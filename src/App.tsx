@@ -187,44 +187,79 @@ function App() {
         </div>
       ) : (
         <main className="dashboard-grid">
-          {leaderboard && (
-            <LiveTiming 
-              data={leaderboard} 
-              title={viewMode === 'LIVE' ? 'LIVE TIMING & INTERVALS' : 'RACE CLASSIFICATION'} 
-            />
-          )}
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            {/* MAX VERSTAPPEN DEDICATED TRACKER */}
-            {session && <MaxTracker 
-              currentPos={leaderboard.find(d => d.name_acronym === 'VER')?.position || null}
-              gap={leaderboard.find(d => d.name_acronym === 'VER')?.date || null}
-              stats={maxStats}
-            />}
-            
-            {/* NEW LIVE LAP TRACKER BOX - Optional hide on history */}
-            {session && (
-              <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <h3 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '2px', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-                    Race Status
-                  </h3>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '2.5rem', fontWeight: '800', color: 'var(--text-primary)' }}>
-                      {viewMode === 'LIVE' ? `LAP ${session.current_lap || 'WAITING'}` : 'FINISHED'}
-                    </span>
-                    <span style={{ color: viewMode === 'LIVE' ? 'var(--accent-f1)' : 'var(--accent-blue)', fontSize: '1rem', fontWeight: 'bold' }}>
-                      {viewMode === 'LIVE' ? '● LIVE INFLUX PIPELINE' : 'JOLPICA DATABASE'}
-                    </span>
-                  </div>
-                </div>
-              </div>
+          {/* COLUMN 1: LEADERBOARD */}
+          <div className="dashboard-column">
+            {leaderboard && (
+              <LiveTiming 
+                data={leaderboard} 
+                title={viewMode === 'LIVE' ? 'LIVE TIMING & INTERVALS' : 'RACE CLASSIFICATION'} 
+              />
             )}
-            
-            {session && <SessionInfo session={session} />}
+          </div>
+
+          {/* COLUMN 2: TRACK MAP / FOCUS */}
+          <div className="dashboard-column center-column">
+             <div className="glass-panel" style={{ height: '100%', minHeight: '600px', position: 'relative' }}>
+                <RaceReplay isEmbedded={true} />
+                <div style={{ position: 'absolute', top: '1rem', right: '1rem', pointerEvents: 'none' }}>
+                   <div className="live-indicator" style={{ backdropFilter: 'blur(8px)' }}>
+                     <div className="pulsing-dot" />
+                     <span className="live-text">SIGNAL: NOMINAL</span>
+                   </div>
+                </div>
+             </div>
+          </div>
+          
+          {/* COLUMN 3: STATS & DRIVER FOCUS */}
+          <div className="dashboard-column right-sidebar">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {/* MAX VERSTAPPEN DEDICATED TRACKER */}
+              {session && <MaxTracker 
+                currentPos={leaderboard.find(d => d.name_acronym === 'VER')?.position || null}
+                gap={leaderboard.find(d => d.name_acronym === 'VER')?.date || null}
+                stats={maxStats}
+              />}
+              
+              {session && <SessionInfo session={session} />}
+
+              {/* LIVE SYNC STATUS CARD (CLEANED UP STITCH ELEMENT) */}
+              <div className="glass-panel" style={{ padding: '1.25rem' }}>
+                 <h4 style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem', letterSpacing: '1.5px' }}>Data Pipeline</h4>
+                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--accent-cyan)' }}>
+                      {viewMode === 'LIVE' ? 'SYNCHRONIZED' : 'ARCHIVED'}
+                    </span>
+                    <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                      LATENCY: 42MS
+                    </span>
+                 </div>
+              </div>
+            </div>
           </div>
         </main>
       )}
+
+      {/* STICKY BOTTOM TELEMETRY BAR */}
+      <footer className="telemetry-footer">
+         <div className="telemetry-status">
+            <div className="status-item">
+               <div className={`status-indicator ${viewMode === 'LIVE' ? 'pulse' : ''}`} />
+               <span>{session?.session_name || 'INITIALIZING...'}</span>
+            </div>
+            <div className="status-item">
+               <span>LAP {session?.current_lap || '--'}/71</span>
+            </div>
+            <div className="status-item">
+               <span>LOC: {session?.location || 'TRACKSIDE'}</span>
+            </div>
+            <div className="status-item">
+               <span style={{ color: 'var(--accent-success)' }}>TRACK CLEAR</span>
+            </div>
+         </div>
+         <div className="pipeline-info" style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+            <span>EXPORT TELEMETRY</span>
+         </div>
+      </footer>
     </div>
   );
 }

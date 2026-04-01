@@ -60,10 +60,16 @@ async function fetchOpenF1<T>(
     }
 
     if (typeof payload === 'object' && payload !== null && 'detail' in payload) {
+      if (typeof payload.detail === 'string' && payload.detail.toLowerCase().includes('not found')) {
+        return [] as unknown as T;
+      }
       throw new Error(String(payload.detail));
     }
 
     if (typeof payload === 'object' && payload !== null && 'error' in payload) {
+      if (typeof payload.error === 'string' && payload.error.toLowerCase().includes('not found')) {
+        return [] as unknown as T;
+      }
       throw new Error(String(payload.error));
     }
 
@@ -191,30 +197,73 @@ export async function fetchReplayDataset(
 ): Promise<ReplayDataset> {
   onProgress?.('Loading driver roster, race order, and lap timing...');
 
-  const [drivers, laps, positions, raceControl] = await Promise.all([
-    fetchOpenF1<ReplayDriver[]>('drivers', { session_key: session.session_key }),
-    fetchOpenF1<ReplayLap[]>('laps', { session_key: session.session_key }),
-    fetchOpenF1<ReplayPositionSample[]>('position', { session_key: session.session_key }),
-    fetchOpenF1<ReplayRaceControlMessage[]>('race_control', { session_key: session.session_key }),
-  ]);
+  // Fetch sequentially to avoid OpenF1 rate limits and connection pooling issues
+  const drivers = await fetchOpenF1<ReplayDriver[]>('drivers', { session_key: session.session_key });
+  const laps = await fetchOpenF1<ReplayLap[]>('laps', { session_key: session.session_key });
+  const positions = await fetchOpenF1<ReplayPositionSample[]>('position', { session_key: session.session_key });
+  const raceControl = await fetchOpenF1<ReplayRaceControlMessage[]>('race_control', { session_key: session.session_key });
 
   const sourceDriverNumber = pickReplayWinner(positions, drivers);
   const referenceLap = pickReferenceLap(laps, sourceDriverNumber);
+
+  async function loadTrackGeometry(targetSession: ReplaySessionSummary, targetLap: ReplayLap | undefined, driverRef: number) {
+    if (!targetLap?.lap_duration) return null;
+    try {
+      const lapEnd = new Date(Date.parse(targetLap.date_start) + targetLap.lap_duration * 1000);
+      const points = await fetchOpenF1<ReplayLocationSample[]>('location', {
+        session_key: targetSession.session_key,
+        driver_number: driverRef,
+        'date>=': targetLap.date_start,
+        'date<=': lapEnd.toISOString(),
+      });
+      const outline = buildTrackOutline(points);
+      return outline.length !== TRACK_FALLBACK_POINTS ? outline : null;
+    } catch {
+      return null;
+    }
+  }
 
   let trackPoints = buildFallbackTrack();
 
   if (referenceLap?.lap_duration) {
     onProgress?.('Loading track geometry for the replay map...');
+    const outline = await loadTrackGeometry(session, referenceLap, sourceDriverNumber);
+    if (outline) trackPoints = outline;
+  }
 
-    const lapEnd = new Date(Date.parse(referenceLap.date_start) + referenceLap.lap_duration * 1000);
-    const locationSamples = await fetchOpenF1<ReplayLocationSample[]>('location', {
-      session_key: session.session_key,
-      driver_number: sourceDriverNumber,
-      'date>=': referenceLap.date_start,
-      'date<=': lapEnd.toISOString(),
-    });
+  // If we still have an oval track (due to no laps yet, or fetch failed), we try borrowing the track from a previous year!
+  if (trackPoints.length === TRACK_FALLBACK_POINTS) {
+    onProgress?.('Fetching historical circuit map from OpenF1 archive...');
+    try {
+      const pastSessions = await fetchOpenF1<ReplaySessionSummary[]>('sessions', {
+        circuit_key: session.circuit_key,
+        session_type: 'Race',
+      });
 
-    trackPoints = buildTrackOutline(locationSamples);
+      // Filter out the current session, and sort by year descending so we get the most recent valid one
+      const candidates = pastSessions
+        .filter((s) => s.session_key !== session.session_key)
+        .sort((a, b) => b.year - a.year);
+
+      for (const historicalSession of candidates) {
+        const pastLaps = await fetchOpenF1<ReplayLap[]>('laps', { session_key: historicalSession.session_key });
+        
+        if (pastLaps && pastLaps.length > 0) {
+          const driverNums = new Set(pastLaps.map((l) => l.driver_number));
+          const pastRef = pickReferenceLap(pastLaps, [...driverNums][0] ?? 1);
+
+          if (pastRef?.lap_duration) {
+            const historicalOutline = await loadTrackGeometry(historicalSession, pastRef, pastRef.driver_number);
+            if (historicalOutline && historicalOutline.length !== TRACK_FALLBACK_POINTS) {
+              trackPoints = historicalOutline;
+              break; // Successfully loaded track outline
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load historical track fallback:', err);
+    }
   }
 
   return {

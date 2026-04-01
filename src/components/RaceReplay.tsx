@@ -244,7 +244,11 @@ function pickDefaultSession(sessions: ReplaySessionSummary[]) {
   return sessions.find((session) => Date.parse(session.date_end) <= now) ?? sessions[0] ?? null;
 }
 
-export default function RaceReplay() {
+interface RaceReplayProps {
+  isEmbedded?: boolean;
+}
+
+export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
   const currentYear = new Date().getFullYear();
   const replayYears = [currentYear, currentYear - 1, currentYear - 2];
   const animationFrameRef = useRef<number | null>(null);
@@ -262,6 +266,9 @@ export default function RaceReplay() {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
   const [replayMs, setReplayMs] = useState<number>(0);
+
+  // ... (keeping all the useEffects and logic from the original file unchanged for now)
+  // I will only change the render logic below to handle isEmbedded
 
   useEffect(() => {
     let ignore = false;
@@ -416,6 +423,109 @@ export default function RaceReplay() {
     ? `${dataset.session.country_name} ${dataset.session.year} Replay`
     : 'Race Replay';
 
+  if (isEmbedded) {
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div className="replay-stage" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="panel-header" style={{ justifyContent: 'space-between', padding: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <Flag size={14} color={getFlagTone(currentRaceControl?.flag ?? null)} />
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>
+                {dataset ? `${dataset.session.circuit_short_name} • LAP ${currentLap}` : 'SYSTEM IDLE'}
+              </span>
+            </div>
+            {dataset && (
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                {REPLAY_SPEEDS.map((speed) => (
+                  <button
+                    key={speed}
+                    className={`speed-chip ${playbackSpeed === speed ? 'active' : ''}`}
+                    onClick={() => setPlaybackSpeed(speed)}
+                    style={{ padding: '0.2rem 0.5rem', fontSize: '0.6rem' }}
+                  >
+                    {speed}x
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="replay-canvas" style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+            {!dataset && !loadingReplay && (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                NO REPLAY DATA SELECTED
+              </div>
+            )}
+            {dataset && (
+              <svg
+                viewBox={`0 0 ${TRACK_WIDTH} ${TRACK_HEIGHT}`}
+                style={{ width: '100%', height: '100%' }}
+              >
+                <defs>
+                   <linearGradient id="trackGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+                     <stop offset="0%" stopColor="rgba(21, 209, 204, 0.15)" />
+                     <stop offset="50%" stopColor="rgba(21, 209, 204, 0.4)" />
+                     <stop offset="100%" stopColor="rgba(21, 209, 204, 0.15)" />
+                   </linearGradient>
+                </defs>
+                <path d={trackPath} fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="20" />
+                <path d={trackPath} fill="none" stroke="url(#trackGlow)" strokeWidth="4" strokeLinecap="round" />
+                {markers.map((marker) => (
+                  <g key={marker.driver.driver_number}>
+                    <circle
+                      cx={marker.x}
+                      cy={marker.y}
+                      r={selectedDriverNumber === marker.driver.driver_number ? 10 : 7}
+                      fill={`#${marker.driver.team_colour}`}
+                      stroke="rgba(0,0,0,0.5)"
+                      strokeWidth="2"
+                    />
+                    <text
+                      x={marker.x}
+                      y={marker.y - 14}
+                      textAnchor="middle"
+                      fill="var(--text-primary)"
+                      style={{ fontSize: 9, fontWeight: 700 }}
+                    >
+                      {marker.driver.name_acronym}
+                    </text>
+                  </g>
+                ))}
+              </svg>
+            )}
+          </div>
+
+          {dataset && (
+            <div className="replay-controls" style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--border-light)' }}>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <button
+                  className="replay-button"
+                  onClick={() => setIsPlaying((v) => !v)}
+                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }}
+                >
+                  {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+                </button>
+                <div style={{ flex: 1 }} className="replay-progress">
+                  <input
+                    type="range"
+                    min={0}
+                    max={replayDurationMs}
+                    value={replayMs}
+                    onChange={(e) => { setIsPlaying(false); setReplayMs(Number(e.target.value)); }}
+                  />
+                </div>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace', width: '40px' }}>
+                  {formatReplayClock(replayMs)}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Original non-embedded layout continues...
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fade-in 0.35s ease-out' }}>
       <div className="glass-panel" style={{ padding: '1.5rem' }}>

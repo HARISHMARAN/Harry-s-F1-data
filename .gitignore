@@ -22,3 +22,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Common Python and system ignores
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+venv.bak/
+.env
+.pytest_cache/
