@@ -452,19 +452,7 @@ class LeaderboardComponent(BaseComponent):
 
             # Tyre Icons
             tyre_val = pos.get("tyre", "?")
-            # Map compound names to numeric icon filenames if necessary
-            tyre_mapping = {
-                'SOFT': '0.0',
-                'MEDIUM': '1.0',
-                'HARD': '2.0',
-                'INTERMEDIATE': '3.0',
-                'WET': '4.0'
-            }
-            texture_lookup = str(tyre_val).upper()
-            if texture_lookup in tyre_mapping:
-                texture_lookup = tyre_mapping[texture_lookup]
-            
-            tyre_texture = self._tyre_textures.get(texture_lookup)
+            tyre_texture = self._tyre_textures.get(str(tyre_val).upper())
             if tyre_texture:
                 # position tyre icon inside the leaderboard area so it doesn't collide with track
                 tyre_icon_x = left_x + self.width - 10

@@ -33,10 +33,7 @@ class F1RaceReplayWindow(arcade.Window):
                  session_info=None, session=None, enable_telemetry=False):
         # Set resizable to True so the user can adjust mid-sim
         super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, title, resizable=True)
-        try:
-            self.maximize()
-        except Exception as e:
-            print(f"Warning: Could not maximize window: {e}")
+        self.maximize()
 
         self.telemetry_stream = None
         if enable_telemetry:

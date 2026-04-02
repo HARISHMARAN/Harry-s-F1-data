@@ -77,8 +77,7 @@ Recently added support for Qualifying session replays with telemetry visualizati
 - Python 3.11+
 - [FastF1](https://github.com/theOehrly/Fast-F1)
 - [Arcade](https://api.arcade.academy/en/latest/)
-- [SciPy](https://scipy.org/) (Required for track mapping)
-- numpy, pandas, matplotlib
+- numpy
 
 Install dependencies:
 ```bash
