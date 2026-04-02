@@ -16,112 +16,120 @@ function App() {
   const { viewMode, session, leaderboard, maxStats, loading, errorMsg, selectedYear, selectedRound, seasonRaces } = state;
 
   return (
-    <div className="app-container">
-      <Header 
-        sessionName={DASHBOARD_TITLE} 
-        isLive={viewMode === 'LIVE'} 
-      />
+    <div className="app-container" style={{ position: 'relative', minHeight: '100vh' }}>
       
-      {/* Mode Toggle Switch */}
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <div className="mode-toggle">
-          <button 
-            className={`toggle-btn ${viewMode === 'LIVE' ? 'active' : ''}`}
-            onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'LIVE' })}
-          >
-            ● LIVE TELEMETRY
-          </button>
-          <button 
-            className={`toggle-btn ${viewMode === 'HISTORICAL' ? 'active-hist' : ''}`}
-            onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'HISTORICAL' })}
-          >
-            HISTORICAL ARCHIVE
-          </button>
-          <button 
-            className={`toggle-btn ${viewMode === 'REPLAY' ? 'active' : ''}`}
-            style={{ backgroundColor: viewMode === 'REPLAY' ? 'rgba(0, 147, 204, 0.16)' : 'transparent', boxShadow: viewMode === 'REPLAY' ? '0 0 10px rgba(0, 147, 204, 0.25)' : 'none' }}
-            onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'REPLAY' })}
-          >
-            RACE REPLAY
-          </button>
-          <button 
-            className={`toggle-btn ${viewMode === 'ADDONS' ? 'active' : ''}`}
-            style={{ backgroundColor: viewMode === 'ADDONS' ? 'var(--text-muted)' : 'transparent', boxShadow: viewMode === 'ADDONS' ? '0 0 10px rgba(140, 140, 148, 0.3)' : 'none' }}
-            onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'ADDONS' })}
-          >
-            ADD-ON LIBRARY
-          </button>
-        </div>
-      </div>
-
-      {/* Historical Race Selectors */}
-      {viewMode === 'HISTORICAL' && (
-        <div className="historical-controls">
-          <select 
-            className="race-selector"
-            value={selectedYear}
-            onChange={(e) => dispatch({ type: 'SET_YEAR', payload: e.target.value })}
-          >
-            <option value="2026">2026 Season</option>
-            <option value="2025">2025 Season</option>
-            <option value="2024">2024 Season</option>
-          </select>
-
-          {seasonRaces.length > 0 && (
-            <select 
-              className="race-selector"
-              value={selectedRound || ""}
-              onChange={(e) => dispatch({ type: 'SET_ROUND', payload: e.target.value })}
-            >
-              {selectedYear === new Date().getFullYear().toString() && (
-                 <option value="">Latest Completed Race</option>
-              )}
-              {seasonRaces.map((race) => (
-                <option key={race.round} value={race.round}>
-                  R{race.round} - {race.raceName}
-                </option>
-              ))}
-            </select>
-          )}
+      {/* BACKGROUND LAYER: TRACK MAP (FIXED) - Only show when NOT in ADDONS or separate REPLAY mode */}
+      {(viewMode === 'LIVE' || viewMode === 'HISTORICAL') && !loading && !errorMsg && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1 }}>
+          <RaceReplay isEmbedded={true} />
         </div>
       )}
 
-      {viewMode === 'ADDONS' ? (
-        <AddonLibrary onOpenReplay={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'REPLAY' })} />
-      ) : viewMode === 'REPLAY' ? (
-        <RaceReplay />
-      ) : loading ? (
-        <div className="dashboard-grid">
-           <div className="dashboard-column">
-              <LeaderboardSkeleton />
-           </div>
-           <div className="dashboard-column center-column" style={{ opacity: 0.3 }}>
-              <div className="glass-panel" style={{ height: '600px' }} />
-           </div>
-           <div className="dashboard-column right-sidebar" style={{ opacity: 0.3 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                 <div className="glass-panel" style={{ height: '240px' }} />
-                 <div className="glass-panel" style={{ height: '180px' }} />
-              </div>
-           </div>
-        </div>
-      ) : errorMsg ? (
-        <div className="glass-panel" style={{ padding: '2rem', textAlign: 'center', borderColor: 'var(--accent-f1)' }}>
-          <AlertCircle size={48} color="var(--accent-f1)" style={{ margin: '0 auto 1rem auto' }} />
-          <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>DATA UNAVAILABLE</h2>
-          <p style={{ color: 'var(--text-secondary)', maxWidth: '600px', margin: '0 auto', lineHeight: '1.6' }}>
-            {errorMsg}
-          </p>
-        </div>
-      ) : (
-        <main style={{ position: 'relative', width: '100%', minHeight: '100vh' }}>
-          {/* BACKGROUND LAYER: TRACK MAP (FIXED) */}
-          <div style={{ position: 'fixed', inset: 0, zIndex: 1 }}>
-            <RaceReplay isEmbedded={true} />
+      {/* FOREGROUND CONTENT */}
+      <div style={{ position: 'relative', zIndex: 100, pointerEvents: 'none', width: '100%' }}>
+        <div style={{ pointerEvents: 'auto' }}>
+          <Header 
+            sessionName={DASHBOARD_TITLE} 
+            isLive={viewMode === 'LIVE'} 
+          />
+          
+          {/* Mode Toggle Switch */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
+            <div className="mode-toggle">
+              <button 
+                className={`toggle-btn ${viewMode === 'LIVE' ? 'active' : ''}`}
+                onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'LIVE' })}
+              >
+                ● LIVE TELEMETRY
+              </button>
+              <button 
+                className={`toggle-btn ${viewMode === 'HISTORICAL' ? 'active-hist' : ''}`}
+                onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'HISTORICAL' })}
+              >
+                HISTORICAL ARCHIVE
+              </button>
+              <button 
+                className={`toggle-btn ${viewMode === 'REPLAY' ? 'active' : ''}`}
+                style={{ backgroundColor: viewMode === 'REPLAY' ? 'rgba(0, 147, 204, 0.16)' : 'transparent', boxShadow: viewMode === 'REPLAY' ? '0 0 10px rgba(0, 147, 204, 0.25)' : 'none' }}
+                onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'REPLAY' })}
+              >
+                RACE REPLAY
+              </button>
+              <button 
+                className={`toggle-btn ${viewMode === 'ADDONS' ? 'active' : ''}`}
+                style={{ backgroundColor: viewMode === 'ADDONS' ? 'var(--text-muted)' : 'transparent', boxShadow: viewMode === 'ADDONS' ? '0 0 10px rgba(140, 140, 148, 0.3)' : 'none' }}
+                onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'ADDONS' })}
+              >
+                ADD-ON LIBRARY
+              </button>
+            </div>
           </div>
 
-          {/* HUD WIDGETS LAYER */}
-          <div style={{ position: 'relative', zIndex: 10, pointerEvents: 'none', minHeight: '100vh', width: '100%' }}>
+          {/* Historical Race Selectors */}
+          {viewMode === 'HISTORICAL' && (
+            <div className="historical-controls">
+              <select 
+                className="race-selector"
+                value={selectedYear}
+                onChange={(e) => dispatch({ type: 'SET_YEAR', payload: e.target.value })}
+              >
+                <option value="2026">2026 Season</option>
+                <option value="2025">2025 Season</option>
+                <option value="2024">2024 Season</option>
+              </select>
+
+              {seasonRaces.length > 0 && (
+                <select 
+                  className="race-selector"
+                  value={selectedRound || ""}
+                  onChange={(e) => dispatch({ type: 'SET_ROUND', payload: e.target.value })}
+                >
+                  {selectedYear === new Date().getFullYear().toString() && (
+                    <option value="">Latest Completed Race</option>
+                  )}
+                  {seasonRaces.map((race) => (
+                    <option key={race.round} value={race.round}>
+                      R{race.round} - {race.raceName}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ position: 'relative', zIndex: 101, width: '100%' }}>
+        {viewMode === 'ADDONS' ? (
+          <AddonLibrary onOpenReplay={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'REPLAY' })} />
+        ) : viewMode === 'REPLAY' ? (
+          <RaceReplay />
+        ) : loading ? (
+          <div className="dashboard-grid">
+            <div className="dashboard-column">
+                <LeaderboardSkeleton />
+            </div>
+            <div className="dashboard-column center-column" style={{ opacity: 0.3 }}>
+                <div className="glass-panel" style={{ height: '600px' }} />
+            </div>
+            <div className="dashboard-column right-sidebar" style={{ opacity: 0.3 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  <div className="glass-panel" style={{ height: '240px' }} />
+                  <div className="glass-panel" style={{ height: '180px' }} />
+                </div>
+            </div>
+          </div>
+        ) : errorMsg ? (
+          <div className="glass-panel" style={{ padding: '2rem', textAlign: 'center', borderColor: 'var(--accent-f1)' }}>
+            <AlertCircle size={48} color="var(--accent-f1)" style={{ margin: '0 auto 1rem auto' }} />
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>DATA UNAVAILABLE</h2>
+            <p style={{ color: 'var(--text-secondary)', maxWidth: '600px', margin: '0 auto', lineHeight: '1.6' }}>
+              {errorMsg}
+            </p>
+          </div>
+        ) : (
+          <main style={{ position: 'relative', width: '100%', minHeight: '100vh', pointerEvents: 'none' }}>
+            {/* HUD WIDGETS LAYER */}
             <div style={{ pointerEvents: 'auto' }}>
               <div style={{ position: 'fixed', top: '1rem', right: '1rem', pointerEvents: 'none', zIndex: 50 }}>
                 <div className="live-indicator" style={{ backdropFilter: 'blur(8px)' }}>
@@ -130,11 +138,11 @@ function App() {
                 </div>
               </div>
 
-              <DraggableWidget id="leaderboard" title={viewMode === 'LIVE' ? 'LIVE TIMING & INTERVALS' : 'RACE CLASSIFICATION'} defaultX={20} defaultY={20}>
+              <DraggableWidget id="leaderboard" title={viewMode === 'LIVE' ? 'LIVE TIMING & INTERVALS' : 'RACE CLASSIFICATION'} defaultX={20} defaultY={80}>
                 {leaderboard && <LiveTiming data={leaderboard} title="" />}
               </DraggableWidget>
 
-              <DraggableWidget id="focused_driver" title="DRIVER FOCUS" defaultX={window.innerWidth - 380} defaultY={60}>
+              <DraggableWidget id="focused_driver" title="DRIVER FOCUS" defaultX={window.innerWidth - 380} defaultY={80}>
                 {session && (
                   <MaxTracker 
                     currentPos={leaderboard?.find(d => d.name_acronym === 'VER')?.position || null}
@@ -144,12 +152,12 @@ function App() {
                 )}
               </DraggableWidget>
 
-              <DraggableWidget id="session_info" title="SESSION" defaultX={window.innerWidth - 380} defaultY={300}>
+              <DraggableWidget id="session_info" title="SESSION" defaultX={window.innerWidth - 380} defaultY={320}>
                 {session && <SessionInfo session={session} />}
               </DraggableWidget>
 
               {/* LIVE SYNC STATUS CARD */}
-              <DraggableWidget id="data_pipeline" title="PIPELINE" defaultX={window.innerWidth - 380} defaultY={460}>
+              <DraggableWidget id="data_pipeline" title="PIPELINE" defaultX={window.innerWidth - 380} defaultY={480}>
                 <div style={{ width: '320px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--accent-cyan)' }}>
                     {viewMode === 'LIVE' ? 'SYNCHRONIZED' : 'ARCHIVED'}
@@ -160,9 +168,9 @@ function App() {
                 </div>
               </DraggableWidget>
             </div>
-          </div>
-        </main>
-      )}
+          </main>
+        )}
+      </div>
 
       {/* STICKY BOTTOM TELEMETRY BAR */}
       <footer className="telemetry-footer">
