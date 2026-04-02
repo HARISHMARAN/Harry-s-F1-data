@@ -114,16 +114,16 @@ function App() {
           </p>
         </div>
       ) : (
-        <main style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
-          {/* BACKGROUND LAYER: TRACK MAP */}
-          <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+        <main style={{ position: 'relative', width: '100%', minHeight: '100vh' }}>
+          {/* BACKGROUND LAYER: TRACK MAP (FIXED) */}
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1 }}>
             <RaceReplay isEmbedded={true} />
           </div>
 
           {/* HUD WIDGETS LAYER */}
-          <div style={{ position: 'absolute', inset: 0, zIndex: 10, pointerEvents: 'none' }}>
+          <div style={{ position: 'relative', zIndex: 10, pointerEvents: 'none', minHeight: '100vh', width: '100%' }}>
             <div style={{ pointerEvents: 'auto' }}>
-              <div style={{ position: 'absolute', top: '1rem', right: '1rem', pointerEvents: 'none', zIndex: 50 }}>
+              <div style={{ position: 'fixed', top: '1rem', right: '1rem', pointerEvents: 'none', zIndex: 50 }}>
                 <div className="live-indicator" style={{ backdropFilter: 'blur(8px)' }}>
                   <div className="pulsing-dot" />
                   <span className="live-text">SIGNAL: NOMINAL</span>

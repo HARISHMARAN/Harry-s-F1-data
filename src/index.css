@@ -31,7 +31,6 @@ body {
   background-color: #050505;
   color: var(--text-primary);
   min-height: 100vh;
-  overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -45,6 +44,14 @@ body {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), inset 0 0 0 1px rgba(255,255,255,0.05);
   transition: box-shadow 0.2s ease;
   z-index: 10;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.hud-widget-content {
+  overflow-y: auto;
+  flex: 1;
 }
 
 .hud-widget.dragging {
@@ -75,12 +82,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .app-container {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 2rem;
+  width: 100%;
+  margin: 0;
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.5rem;
 }
 
 .header {

@@ -75,7 +75,7 @@ export default function DraggableWidget({ id, title, defaultX, defaultY, childre
       <div className="hud-widget-header" onMouseDown={handleMouseDown}>
         <span style={{ fontSize: '10px', color: 'var(--text-muted)', letterSpacing: '1px', userSelect: 'none' }}>{title}</span>
       </div>
-      <div style={{ padding: '12px' }}>
+      <div className="hud-widget-content" style={{ padding: '12px' }}>
         {children}
       </div>
     </div>
