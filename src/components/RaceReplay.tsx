@@ -266,6 +266,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
   const [replayMs, setReplayMs] = useState<number>(0);
+  const [zoom, setZoom] = useState<number>(1);
 
   // ... (keeping all the useEffects and logic from the original file unchanged for now)
   // I will only change the render logic below to handle isEmbedded
@@ -430,10 +431,22 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
     : 'Race Replay';
 
   if (isEmbedded) {
+    const vWidth = TRACK_WIDTH / zoom;
+    const vHeight = TRACK_HEIGHT / zoom;
+    const vX = (TRACK_WIDTH - vWidth) / 2;
+    const vY = (TRACK_HEIGHT - vHeight) / 2;
+
     return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <div className="replay-stage" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div className="panel-header" style={{ justifyContent: 'space-between', padding: '1rem' }}>
+      <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div className="replay-stage" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+          
+          <div style={{ position: 'absolute', bottom: '30px', right: '30px', display: 'flex', gap: '8px', zIndex: 5 }}>
+             <button className="replay-button" style={{ padding: '0.4rem 0.8rem', fontSize: '1rem', fontWeight: 'bold' }} onClick={() => setZoom(z => Math.max(0.5, z - 0.2))}>-</button>
+             <button className="replay-button" style={{ padding: '0.4rem 0.8rem', fontSize: '1rem', fontWeight: 'bold' }} onClick={() => setZoom(z => Math.min(3, z + 0.2))}>+</button>
+             <button className="replay-button" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', fontWeight: 'bold' }} onClick={() => setZoom(1)}>Reset</button>
+          </div>
+
+          <div className="panel-header" style={{ justifyContent: 'space-between', padding: '1rem', position: 'absolute', top: 0, left: 0, right: 0, zIndex: 4, background: 'linear-gradient(to bottom, rgba(0,0,0,0.5), transparent)', borderBottom: 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <Flag size={14} color={getFlagTone(currentRaceControl?.flag ?? null)} />
               <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>
@@ -456,7 +469,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
             )}
           </div>
 
-          <div className="replay-canvas" style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+          <div className="replay-canvas" style={{ flex: 1, minHeight: 0, position: 'relative', background: 'transparent' }}>
             {!dataset && !loadingReplay && (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                 NO REPLAY DATA SELECTED
@@ -464,14 +477,14 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
             )}
             {dataset && (
               <svg
-                viewBox={`0 0 ${TRACK_WIDTH} ${TRACK_HEIGHT}`}
-                style={{ width: '100%', height: '100%' }}
+                viewBox={`${vX} ${vY} ${vWidth} ${vHeight}`}
+                style={{ width: '100%', height: '100%', transition: 'viewBox 0.3s ease-out' }}
               >
                 <defs>
                    <linearGradient id="trackGlow" x1="0%" y1="0%" x2="100%" y2="0%">
-                     <stop offset="0%" stopColor="rgba(21, 209, 204, 0.15)" />
-                     <stop offset="50%" stopColor="rgba(21, 209, 204, 0.4)" />
-                     <stop offset="100%" stopColor="rgba(21, 209, 204, 0.15)" />
+                     <stop offset="0%" stopColor="rgba(0, 240, 255, 0.15)" />
+                     <stop offset="50%" stopColor="rgba(0, 240, 255, 0.4)" />
+                     <stop offset="100%" stopColor="rgba(0, 240, 255, 0.15)" />
                    </linearGradient>
                 </defs>
                 <path d={trackPath} fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="20" />
@@ -502,7 +515,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
           </div>
 
           {dataset && (
-            <div className="replay-controls" style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--border-light)' }}>
+            <div className="replay-controls" style={{ padding: '0.75rem 1rem', borderTop: 'none', position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)' }}>
               <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                 <button
                   className="replay-button"

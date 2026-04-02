@@ -4,6 +4,7 @@ import SessionInfo from './components/SessionInfo';
 import MaxTracker from './components/MaxTracker';
 import AddonLibrary from './components/AddonLibrary';
 import RaceReplay from './components/RaceReplay';
+import DraggableWidget from './components/DraggableWidget';
 import { AlertCircle } from 'lucide-react';
 import { useDashboardData } from './hooks/useDashboardData';
 import { DASHBOARD_TITLE } from './constants';
@@ -113,56 +114,51 @@ function App() {
           </p>
         </div>
       ) : (
-        <main className="dashboard-grid">
-          {/* COLUMN 1: LEADERBOARD */}
-          <div className="dashboard-column">
-            {leaderboard && (
-              <LiveTiming 
-                data={leaderboard} 
-                title={viewMode === 'LIVE' ? 'LIVE TIMING & INTERVALS' : 'RACE CLASSIFICATION'} 
-              />
-            )}
+        <main style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+          {/* BACKGROUND LAYER: TRACK MAP */}
+          <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+            <RaceReplay isEmbedded={true} />
           </div>
 
-          {/* COLUMN 2: TRACK MAP / FOCUS */}
-          <div className="dashboard-column center-column">
-             <div className="glass-panel" style={{ height: '100%', minHeight: '600px', position: 'relative' }}>
-                <RaceReplay isEmbedded={true} />
-                <div style={{ position: 'absolute', top: '1rem', right: '1rem', pointerEvents: 'none' }}>
-                   <div className="live-indicator" style={{ backdropFilter: 'blur(8px)' }}>
-                      <div className="pulsing-dot" />
-                      <span className="live-text">SIGNAL: NOMINAL</span>
-                   </div>
+          {/* HUD WIDGETS LAYER */}
+          <div style={{ position: 'absolute', inset: 0, zIndex: 10, pointerEvents: 'none' }}>
+            <div style={{ pointerEvents: 'auto' }}>
+              <div style={{ position: 'absolute', top: '1rem', right: '1rem', pointerEvents: 'none', zIndex: 50 }}>
+                <div className="live-indicator" style={{ backdropFilter: 'blur(8px)' }}>
+                  <div className="pulsing-dot" />
+                  <span className="live-text">SIGNAL: NOMINAL</span>
                 </div>
-             </div>
-          </div>
-          
-          {/* COLUMN 3: STATS & DRIVER FOCUS */}
-          <div className="dashboard-column right-sidebar">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              {/* MAX VERSTAPPEN DEDICATED TRACKER */}
-              {session && (
-                <MaxTracker 
-                  currentPos={leaderboard.find(d => d.name_acronym === 'VER')?.position || null}
-                  gap={leaderboard.find(d => d.name_acronym === 'VER')?.date || null}
-                  stats={maxStats}
-                />
-              )}
-              
-              {session && <SessionInfo session={session} />}
-
-              {/* LIVE SYNC STATUS CARD (CLEANED UP STITCH ELEMENT) */}
-              <div className="glass-panel" style={{ padding: '1.25rem' }}>
-                 <h4 style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem', letterSpacing: '1.5px' }}>Data Pipeline</h4>
-                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--accent-cyan)' }}>
-                      {viewMode === 'LIVE' ? 'SYNCHRONIZED' : 'ARCHIVED'}
-                    </span>
-                    <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                      LATENCY: 42MS
-                    </span>
-                 </div>
               </div>
+
+              <DraggableWidget id="leaderboard" title={viewMode === 'LIVE' ? 'LIVE TIMING & INTERVALS' : 'RACE CLASSIFICATION'} defaultX={20} defaultY={20}>
+                {leaderboard && <LiveTiming data={leaderboard} title="" />}
+              </DraggableWidget>
+
+              <DraggableWidget id="focused_driver" title="DRIVER FOCUS" defaultX={window.innerWidth - 380} defaultY={60}>
+                {session && (
+                  <MaxTracker 
+                    currentPos={leaderboard?.find(d => d.name_acronym === 'VER')?.position || null}
+                    gap={leaderboard?.find(d => d.name_acronym === 'VER')?.date || null}
+                    stats={maxStats}
+                  />
+                )}
+              </DraggableWidget>
+
+              <DraggableWidget id="session_info" title="SESSION" defaultX={window.innerWidth - 380} defaultY={300}>
+                {session && <SessionInfo session={session} />}
+              </DraggableWidget>
+
+              {/* LIVE SYNC STATUS CARD */}
+              <DraggableWidget id="data_pipeline" title="PIPELINE" defaultX={window.innerWidth - 380} defaultY={460}>
+                <div style={{ width: '320px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--accent-cyan)' }}>
+                    {viewMode === 'LIVE' ? 'SYNCHRONIZED' : 'ARCHIVED'}
+                  </span>
+                  <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                    LATENCY: 42MS
+                  </span>
+                </div>
+              </DraggableWidget>
             </div>
           </div>
         </main>
