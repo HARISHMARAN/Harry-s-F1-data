@@ -147,7 +147,6 @@ def _process_single_driver(args):
 def load_session(year, round_number, session_type="R"):
     # session_type: 'R' (Race), 'S' (Sprint) etc.
     session = fastf1.get_session(year, round_number, session_type)
-    session.load(telemetry=True, weather=True)
     return session
 
 

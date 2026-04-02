@@ -50,6 +50,7 @@ export interface ReplaySessionSummary {
   country_name: string;
   location: string;
   year: number;
+  round: number;
 }
 
 export interface ReplayDriver {

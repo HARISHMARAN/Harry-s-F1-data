@@ -56,7 +56,8 @@ def get_sessions(year: int = Query(default=None)):
 @app.get("/api/replay/{year}/{round_number}")
 def get_replay_data(year: int, round_number: int, session_type: str = "R"):
     try:
-        # Load session with full laps AND telemetry
+        # Load session. We NEED telemetry=True for the track map,
+        # but we will only call get_telemetry() once to keep it fast.
         session = load_session(year, round_number, session_type)
         session.load(laps=True, telemetry=True, weather=False, messages=True)
         
@@ -79,71 +80,83 @@ def get_replay_data(year: int, round_number: int, session_type: str = "R"):
 
         # Get Laps (High Fidelity Timing)
         laps_data = []
+        earliest_start = None
+        latest_end = None
+
         for _, lap in session.laps.iterlaps():
             try:
                 if pd.notnull(lap['Time']) and pd.notnull(lap['LapTime']):
-                    lap_end = session_start + lap['Time']
-                    lap_start = lap_end - lap['LapTime']
+                    lap_end_td = lap['Time']
+                    lap_duration_td = lap['LapTime']
+                    lap_start_td = lap_end_td - lap_duration_td
                     
+                    lap_end_abs = session_start + lap_end_td
+                    lap_start_abs = session_start + lap_start_td
+                    
+                    if earliest_start is None or lap_start_abs < earliest_start:
+                        earliest_start = lap_start_abs
+                    if latest_end is None or lap_end_abs > latest_end:
+                        latest_end = lap_end_abs
+
                     laps_data.append({
                         "driver_number": int(lap['DriverNumber']),
                         "lap_number": int(lap['LapNumber']),
-                        "lap_duration": float(lap['LapTime'].total_seconds()),
-                        "date_start": lap_start.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
-                        "is_pit_out_lap": bool(lap['PitOutTime'] is not None and pd.notnull(lap['PitOutTime']))
+                        "lap_duration": float(lap_duration_td.total_seconds()),
+                        "date_start": lap_start_abs.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+                        "is_pit_out_lap": bool(pd.notnull(lap.get('PitOutTime')))
                     })
             except:
                 continue
 
-        # Get Positions from Telemetry (Sampled every 5 seconds)
+        # Get Positions from Laps (Much lighter than telemetry sampling)
         positions_data = []
-        for drv_code in session.drivers:
+        for _, lap in session.laps.iterlaps():
             try:
-                # Use pick_drivers for FastF1 v3 compatibility
-                drv_laps = session.laps.pick_drivers(drv_code)
-                # We iterate through laps to get per-lap telemetry
-                for _, lap in drv_laps.iterrows():
-                    tel = lap.get_telemetry()
-                    if tel is not None and not tel.empty:
-                        # Sample 3 points per lap: start, middle, end
-                        indices = [0, len(tel)//2, len(tel)-1]
-                        for idx in indices:
-                            row = tel.iloc[idx]
-                            abs_time = session_start + row['Time']
-                            positions_data.append({
-                                "driver_number": int(drv_code),
-                                "date": abs_time.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
-                                "position": int(lap['LapNumber'])
-                            })
-            except Exception as e:
-                # log or ignore errors for individual drivers
-                pass
+                if pd.notnull(lap['Time']) and pd.notnull(lap['Position']):
+                    abs_time = session_start + lap['Time']
+                    positions_data.append({
+                        "driver_number": int(lap['DriverNumber']),
+                        "date": abs_time.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+                        "position": int(lap['Position'])
+                    })
+            except:
+                continue
 
-        # Track Map Outline from fastest lap
+        # Track Map Outline from fastest lap - ONE SINGLE TELEMETRY CALL
         try:
             fastest_lap = session.laps.pick_fastest()
             tel_map = fastest_lap.get_telemetry()
             track_points = []
-            for i in range(0, len(tel_map), 10):
-                track_points.append({
-                    "x": float(tel_map.iloc[i]['X']),
-                    "y": float(tel_map.iloc[i]['Y'])
-                })
-        except:
+            if tel_map is not None and not tel_map.empty:
+                # Use every 5th point for better resolution than before (10th) but still light
+                for i in range(0, len(tel_map), 5):
+                    track_points.append({
+                        "x": float(tel_map.iloc[i]['X']),
+                        "y": float(tel_map.iloc[i]['Y'])
+                    })
+            source_driver = int(fastest_lap['DriverNumber']) if 'DriverNumber' in fastest_lap else 1
+        except Exception as e:
+            print(f"Track Map Error: {e}")
             track_points = []
+            source_driver = 1
 
         # Race Control Messages
         race_control = []
         try:
             for _, row in session.race_control.iterrows():
+                msg_time_abs = session_start + row['Time']
                 race_control.append({
-                    "date": (session_start + row['Time']).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+                    "date": msg_time_abs.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
                     "category": row['Category'],
                     "message": row['Message'],
                     "flag": row['Flag'] if 'Flag' in row else None
                 })
         except:
             pass
+
+        # Use actual race start/end instead of session start
+        final_start = earliest_start if earliest_start else session_start
+        final_end = latest_end if latest_end else (final_start + pd.Timedelta(hours=2))
 
         return {
             "session": {
@@ -159,11 +172,11 @@ def get_replay_data(year: int, round_number: int, session_type: str = "R"):
             "race_control": race_control,
             "track": {
                 "points": track_points,
-                "source_driver_number": int(fastest_lap.get('DriverNumber', 1))
+                "source_driver_number": source_driver
             },
-            "start_time": session_start.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
-            "end_time": (session_start + pd.Timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
-            "total_laps": int(session.laps['LapNumber'].max())
+            "start_time": final_start.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+            "end_time": final_end.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+            "total_laps": int(session.laps['LapNumber'].max()) if not session.laps.empty else 0
         }
         
     except Exception as e:
