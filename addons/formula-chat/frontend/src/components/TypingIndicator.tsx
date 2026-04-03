@@ -1,5 +1,6 @@
 const TOOL_LABELS: Record<string, string> = {
   f1_knowledge: 'Searching knowledge base…',
+  sql_query: 'Querying race database…',
 };
 
 interface TypingIndicatorProps {

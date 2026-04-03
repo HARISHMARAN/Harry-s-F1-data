@@ -3,6 +3,7 @@ import { Terminal, Gauge, MessageSquare, LineChart, Code } from 'lucide-react';
 
 interface AddonLibraryProps {
   onOpenReplay: () => void;
+  onOpenChat: () => void;
 }
 
 interface AddonDefinition {
@@ -14,6 +15,8 @@ interface AddonDefinition {
   stack: string[];
   cmd: string;
   embedded?: boolean;
+  action?: 'REPLAY' | 'CHAT';
+  actionLabel?: string;
 }
 
 const ADDONS: AddonDefinition[] = [
@@ -33,8 +36,11 @@ const ADDONS: AddonDefinition[] = [
     author: 'IAmTomShaw',
     description: 'A Formula 1-themed chatbot that knows everything about your favourite motorsport series.',
     icon: <MessageSquare size={24} color="var(--accent-blue)" />,
-    stack: ['Python', 'OpenAI'],
-    cmd: 'cd addons/formula-chat && pip install -r requirements.txt && python3 chat.py'
+    stack: ['Python', 'OpenAI', 'RAG'],
+    embedded: true,
+    action: 'CHAT',
+    actionLabel: 'Open Chat In Dashboard',
+    cmd: 'Built into the dashboard. Open the Chatbot tab to use it.'
   },
   {
     id: 'racing-lap-trace-python',
@@ -56,7 +62,7 @@ const ADDONS: AddonDefinition[] = [
   }
 ];
 
-export default function AddonLibrary({ onOpenReplay }: AddonLibraryProps) {
+export default function AddonLibrary({ onOpenReplay, onOpenChat }: AddonLibraryProps) {
   return (
     <div style={{ animation: 'fade-in 0.4s ease-out' }}>
       <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
@@ -95,14 +101,25 @@ export default function AddonLibrary({ onOpenReplay }: AddonLibraryProps) {
               ))}
             </div>
 
-            {addon.embedded ? (
+            {addon.embedded && addon.action === 'REPLAY' ? (
               <button
                 type="button"
                 className="replay-button"
                 onClick={onOpenReplay}
                 style={{ alignSelf: 'flex-start' }}
               >
-                Open Replay In Dashboard
+                {addon.actionLabel ?? 'Open Replay In Dashboard'}
+              </button>
+            ) : null}
+
+            {addon.embedded && addon.action === 'CHAT' ? (
+              <button
+                type="button"
+                className="replay-button"
+                onClick={onOpenChat}
+                style={{ alignSelf: 'flex-start' }}
+              >
+                {addon.actionLabel ?? 'Open Chat In Dashboard'}
               </button>
             ) : null}
 

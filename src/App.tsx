@@ -5,6 +5,7 @@ import MaxTracker from './components/MaxTracker';
 import AddonLibrary from './components/AddonLibrary';
 import RaceReplay from './components/RaceReplay';
 import DraggableWidget from './components/DraggableWidget';
+import ChatView from './components/chat/ChatView';
 import { AlertCircle } from 'lucide-react';
 import { useDashboardData } from './hooks/useDashboardData';
 import { DASHBOARD_TITLE } from './constants';
@@ -62,6 +63,13 @@ function App() {
               >
                 ADD-ON LIBRARY
               </button>
+              <button 
+                className={`toggle-btn ${viewMode === 'CHAT' ? 'active' : ''}`}
+                style={{ backgroundColor: viewMode === 'CHAT' ? 'rgba(234, 51, 35, 0.12)' : 'transparent', boxShadow: viewMode === 'CHAT' ? '0 0 10px rgba(234, 51, 35, 0.3)' : 'none' }}
+                onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'CHAT' })}
+              >
+                CHATBOT
+              </button>
             </div>
           </div>
 
@@ -101,7 +109,12 @@ function App() {
 
       <div style={{ position: 'relative', zIndex: 101, width: '100%' }}>
         {viewMode === 'ADDONS' ? (
-          <AddonLibrary onOpenReplay={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'REPLAY' })} />
+          <AddonLibrary 
+            onOpenReplay={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'REPLAY' })}
+            onOpenChat={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'CHAT' })}
+          />
+        ) : viewMode === 'CHAT' ? (
+          <ChatView />
         ) : viewMode === 'REPLAY' ? (
           <RaceReplay />
         ) : loading ? (
@@ -173,6 +186,7 @@ function App() {
       </div>
 
       {/* STICKY BOTTOM TELEMETRY BAR */}
+      {viewMode !== 'CHAT' && (
       <footer className="telemetry-footer">
          <div className="telemetry-status">
             <div className="status-item">
@@ -193,9 +207,9 @@ function App() {
             <span>EXPORT TELEMETRY</span>
          </div>
       </footer>
+      )}
     </div>
   );
 }
 
 export default App;
-

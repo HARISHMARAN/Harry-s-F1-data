@@ -1,8 +1,20 @@
-import { useState, useCallback, useRef } from 'react';
-import type { Message, Role, StreamChunk } from '../types';
+import { useCallback, useRef, useState } from 'react';
+import type { Message, Role, StreamChunk } from '../types/chat';
+
+const API_BASE = import.meta.env.VITE_CHAT_API_BASE ?? '';
 
 function generateId(): string {
   return Math.random().toString(36).slice(2, 11);
+}
+
+function getFriendlyError(err: unknown) {
+  if (err instanceof Error) {
+    if (err.message === 'Failed to fetch') {
+      return 'Chat API is not reachable. Start the Formula Chat API on http://localhost:8000.';
+    }
+    return err.message;
+  }
+  return 'Something went wrong. Please try again.';
 }
 
 export function useChat() {
@@ -32,9 +44,12 @@ export function useChat() {
     const pendingToolCalls: string[] = [];
 
     try {
-      const history = messages.map((m) => ({ role: m.role as Role, content: m.content }));
+      const history = [...messages, userMessage].map((m) => ({
+        role: m.role as Role,
+        content: m.content,
+      }));
 
-      const response = await fetch('/api/v1/chat/stream', {
+      const response = await fetch(`${API_BASE}/api/v1/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -102,7 +117,6 @@ export function useChat() {
           } else if (chunk.type === 'tool_call') {
             const toolName = chunk.tool_name ?? 'tool';
             setActiveToolCall(toolName);
-            // Append tool name to the streaming message once it exists
             if (streamingStarted) {
               setMessages((prev) =>
                 prev.map((m) =>
@@ -120,6 +134,7 @@ export function useChat() {
             }
             setActiveToolCall(null);
             setIsLoading(false);
+
             if (!streamingStarted) {
               setMessages((prev) => [
                 ...prev,
@@ -147,6 +162,7 @@ export function useChat() {
             }
           } else if (chunk.type === 'error') {
             setActiveToolCall(null);
+            setIsLoading(false);
             if (streamingStarted) {
               setMessages((prev) =>
                 prev.map((m) =>
@@ -167,14 +183,13 @@ export function useChat() {
                 },
               ]);
             }
-            setIsLoading(false);
           }
         }
       }
     } catch (err) {
       setActiveToolCall(null);
-      const errorContent =
-        err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+      setIsLoading(false);
+      const errorContent = getFriendlyError(err);
 
       if (streamingStarted) {
         setMessages((prev) =>
@@ -196,8 +211,6 @@ export function useChat() {
           },
         ]);
       }
-    } finally {
-      setIsLoading(false);
     }
   }, [messages, isLoading]);
 
