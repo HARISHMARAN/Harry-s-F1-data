@@ -214,7 +214,7 @@ function findLapWindow(laps: ReplayLap[], driverNumber: number) {
     const startMs = Date.parse(start ?? '');
     const nextMs = Date.parse(next ?? '');
 
-    if (Number.isFinite(startMs) && Number.isFinite(nextMs) && nextMs > startMs) {
+    if (start && Number.isFinite(startMs) && Number.isFinite(nextMs) && nextMs > startMs) {
       return { start, end: new Date(nextMs).toISOString() };
     }
   }
