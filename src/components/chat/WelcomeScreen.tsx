@@ -10,6 +10,9 @@ interface WelcomeScreenProps {
 }
 
 export default function WelcomeScreen({ onSuggestion }: WelcomeScreenProps) {
+  const chatMode = (import.meta.env.VITE_CHAT_MODE ?? 'offline').toLowerCase();
+  const isOffline = chatMode !== 'online';
+
   return (
     <div className="chat-welcome">
       <div className="chat-welcome-hero">
@@ -19,7 +22,10 @@ export default function WelcomeScreen({ onSuggestion }: WelcomeScreenProps) {
           <div />
         </div>
         <h1>Formula 1 AI Chatbot</h1>
-        <p>Ask me anything about Formula 1.</p>
+        <p>
+          Ask me anything about Formula 1.
+          {isOffline ? ' Offline mode is active.' : ''}
+        </p>
       </div>
 
       <div className="chat-suggestions">

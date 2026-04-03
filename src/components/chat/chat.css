@@ -101,6 +101,11 @@
   animation: chat-pulse 1.2s ease-in-out infinite;
 }
 
+.chat-status-offline {
+  background: #4a6cf7;
+  box-shadow: 0 0 10px rgba(74, 108, 247, 0.4);
+}
+
 .chat-status-text {
   color: var(--text-muted);
   font-weight: 600;

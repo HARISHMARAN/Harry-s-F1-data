@@ -4,6 +4,7 @@ import SessionInfo from './components/SessionInfo';
 import MaxTracker from './components/MaxTracker';
 import AddonLibrary from './components/AddonLibrary';
 import RaceReplay from './components/RaceReplay';
+import TrackBackdrop from './components/TrackBackdrop';
 import DraggableWidget from './components/DraggableWidget';
 import ChatView from './components/chat/ChatView';
 import { AlertCircle } from 'lucide-react';
@@ -22,7 +23,7 @@ function App() {
       {/* BACKGROUND LAYER: TRACK MAP (FIXED) - Only show when NOT in ADDONS or separate REPLAY mode */}
       {(viewMode === 'LIVE' || viewMode === 'HISTORICAL') && !loading && !errorMsg && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1 }}>
-          <RaceReplay isEmbedded={true} />
+          <TrackBackdrop session={session} />
         </div>
       )}
 

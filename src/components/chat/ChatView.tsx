@@ -12,6 +12,8 @@ export default function ChatView() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [apiStatus, setApiStatus] = useState<'checking' | 'ok' | 'degraded' | 'down'>('checking');
   const [toast, setToast] = useState<string | null>(null);
+  const chatMode = (import.meta.env.VITE_CHAT_MODE ?? 'offline').toLowerCase();
+  const isOffline = chatMode !== 'online';
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -29,6 +31,10 @@ export default function ChatView() {
     let timer: ReturnType<typeof setInterval> | null = null;
 
     const checkHealth = async () => {
+      if (isOffline) {
+        if (isMounted) setApiStatus('down');
+        return;
+      }
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 4000);
@@ -56,17 +62,23 @@ export default function ChatView() {
     };
 
     checkHealth();
-    timer = setInterval(checkHealth, 20000);
+    if (!isOffline) {
+      timer = setInterval(checkHealth, 20000);
+    }
 
     return () => {
       isMounted = false;
       if (timer) clearInterval(timer);
     };
-  }, []);
+  }, [isOffline]);
 
   return (
     <section className="chat-shell glass-panel">
-      <ChatHeader onClear={clearMessages} hasMessages={messages.length > 0} status={apiStatus} />
+      <ChatHeader
+        onClear={clearMessages}
+        hasMessages={messages.length > 0}
+        status={isOffline ? 'offline' : apiStatus}
+      />
 
       <main className="chat-body">
         {toast && (

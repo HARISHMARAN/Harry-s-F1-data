@@ -1,17 +1,19 @@
 interface ChatHeaderProps {
   onClear: () => void;
   hasMessages: boolean;
-  status: 'checking' | 'ok' | 'degraded' | 'down';
+  status: 'checking' | 'ok' | 'degraded' | 'down' | 'offline';
 }
 
 export default function ChatHeader({ onClear, hasMessages, status }: ChatHeaderProps) {
-  const label = status === 'checking'
-    ? 'API: CHECKING'
-    : status === 'ok'
-      ? 'API: OK'
-      : status === 'degraded'
-        ? 'API: DEGRADED'
-        : 'API: DOWN';
+  const label = status === 'offline'
+    ? 'MODE: OFFLINE'
+    : status === 'checking'
+      ? 'API: CHECKING'
+      : status === 'ok'
+        ? 'API: OK'
+        : status === 'degraded'
+          ? 'API: DEGRADED'
+          : 'API: DOWN';
 
   return (
     <header className="chat-header">

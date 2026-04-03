@@ -10,6 +10,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { fetchReplayDataset, fetchReplaySessions } from '../services/replay';
+import { buildTrackPath, generateTrackPoints, normalizeTrack } from '../services/trackLayout';
 import type {
   ReplayDataset,
   ReplayDriver,
@@ -32,7 +33,6 @@ interface ReplayMarker {
 
 const TRACK_WIDTH = 860;
 const TRACK_HEIGHT = 560;
-const TRACK_PADDING = 56;
 const REPLAY_SPEEDS = [0.5, 1, 2, 4];
 
 function clamp(value: number, minimum: number, maximum: number) {
@@ -117,38 +117,11 @@ function pointAtFraction(points: ReplayTrackPoint[], fraction: number) {
   };
 }
 
-function normalizeTrack(points: ReplayTrackPoint[]) {
-  if (points.length === 0) {
-    return [];
-  }
-
-  const xValues = points.map((point) => point.x);
-  const yValues = points.map((point) => point.y);
-  const minX = Math.min(...xValues);
-  const maxX = Math.max(...xValues);
-  const minY = Math.min(...yValues);
-  const maxY = Math.max(...yValues);
-  const width = Math.max(maxX - minX, 1);
-  const height = Math.max(maxY - minY, 1);
-  const scale = Math.min(
-    (TRACK_WIDTH - TRACK_PADDING * 2) / width,
-    (TRACK_HEIGHT - TRACK_PADDING * 2) / height,
-  );
-
-  return points.map((point) => ({
-    x: TRACK_PADDING + (point.x - minX) * scale,
-    y: TRACK_HEIGHT - TRACK_PADDING - (point.y - minY) * scale,
-  }));
-}
-
-function buildTrackPath(points: ReplayTrackPoint[]) {
-  if (points.length === 0) {
-    return '';
-  }
-
-  return points
-    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
-    .join(' ');
+function resolveTrackPoints(dataset: ReplayDataset | null): ReplayTrackPoint[] {
+  if (!dataset) return [];
+  if (dataset.track?.points?.length) return dataset.track.points;
+  const seed = `${dataset.session?.circuit_short_name ?? 'circuit'}-${dataset.session?.year ?? ''}`;
+  return generateTrackPoints(seed);
 }
 
 function getLapState(laps: ReplayLap[], replayTime: number) {
@@ -267,6 +240,179 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
   const [replayMs, setReplayMs] = useState<number>(0);
   const [zoom, setZoom] = useState<number>(1);
+  const [demoMode, setDemoMode] = useState<boolean>(false);
+
+  const demoSessions: ReplaySessionSummary[] = [
+    {
+      session_key: 1,
+      session_type: 'R',
+      session_name: 'Bahrain Grand Prix',
+      date_start: `${currentYear}-03-02T12:00:00Z`,
+      date_end: `${currentYear}-03-02T14:00:00Z`,
+      meeting_key: 1,
+      circuit_key: 1,
+      circuit_short_name: 'Bahrain',
+      country_name: 'Bahrain',
+      location: 'Sakhir',
+      year: currentYear,
+      round: 1,
+    },
+    {
+      session_key: 2,
+      session_type: 'R',
+      session_name: 'Monaco Grand Prix',
+      date_start: `${currentYear}-05-25T14:00:00Z`,
+      date_end: `${currentYear}-05-25T16:00:00Z`,
+      meeting_key: 2,
+      circuit_key: 2,
+      circuit_short_name: 'Monaco',
+      country_name: 'Monaco',
+      location: 'Monte Carlo',
+      year: currentYear,
+      round: 2,
+    },
+    {
+      session_key: 3,
+      session_type: 'R',
+      session_name: 'Italian Grand Prix',
+      date_start: `${currentYear}-09-07T13:00:00Z`,
+      date_end: `${currentYear}-09-07T15:00:00Z`,
+      meeting_key: 3,
+      circuit_key: 3,
+      circuit_short_name: 'Monza',
+      country_name: 'Italy',
+      location: 'Monza',
+      year: currentYear,
+      round: 3,
+    },
+  ];
+
+  function buildDemoDataset(session: ReplaySessionSummary): ReplayDataset {
+    const baseTime = new Date(session.date_start).getTime() || Date.now();
+    const totalLaps = 12;
+    const drivers: ReplayDriver[] = [
+      {
+        session_key: session.session_key,
+        driver_number: 1,
+        broadcast_name: 'VER',
+        full_name: 'Max Verstappen',
+        name_acronym: 'VER',
+        team_name: 'Red Bull Racing',
+        team_colour: '3671C6',
+        first_name: 'Max',
+        last_name: 'Verstappen',
+        headshot_url: '',
+        country_code: 'NED',
+      },
+      {
+        session_key: session.session_key,
+        driver_number: 44,
+        broadcast_name: 'HAM',
+        full_name: 'Lewis Hamilton',
+        name_acronym: 'HAM',
+        team_name: 'Ferrari',
+        team_colour: 'E8002D',
+        first_name: 'Lewis',
+        last_name: 'Hamilton',
+        headshot_url: '',
+        country_code: 'GBR',
+      },
+      {
+        session_key: session.session_key,
+        driver_number: 16,
+        broadcast_name: 'LEC',
+        full_name: 'Charles Leclerc',
+        name_acronym: 'LEC',
+        team_name: 'Ferrari',
+        team_colour: 'E8002D',
+        first_name: 'Charles',
+        last_name: 'Leclerc',
+        headshot_url: '',
+        country_code: 'MON',
+      },
+      {
+        session_key: session.session_key,
+        driver_number: 4,
+        broadcast_name: 'NOR',
+        full_name: 'Lando Norris',
+        name_acronym: 'NOR',
+        team_name: 'McLaren',
+        team_colour: 'FF8000',
+        first_name: 'Lando',
+        last_name: 'Norris',
+        headshot_url: '',
+        country_code: 'GBR',
+      },
+      {
+        session_key: session.session_key,
+        driver_number: 63,
+        broadcast_name: 'RUS',
+        full_name: 'George Russell',
+        name_acronym: 'RUS',
+        team_name: 'Mercedes',
+        team_colour: '27F4D2',
+        first_name: 'George',
+        last_name: 'Russell',
+        headshot_url: '',
+        country_code: 'GBR',
+      },
+      {
+        session_key: session.session_key,
+        driver_number: 14,
+        broadcast_name: 'ALO',
+        full_name: 'Fernando Alonso',
+        name_acronym: 'ALO',
+        team_name: 'Aston Martin',
+        team_colour: '229971',
+        first_name: 'Fernando',
+        last_name: 'Alonso',
+        headshot_url: '',
+        country_code: 'ESP',
+      },
+    ];
+
+    const laps: ReplayLap[] = [];
+    const positions: ReplayPositionSample[] = [];
+
+    drivers.forEach((driver, idx) => {
+      const offset = idx * 4000;
+      for (let lap = 1; lap <= totalLaps; lap += 1) {
+        const lapDuration = 88 + (idx % 3) * 1.5;
+        const lapStart = baseTime + offset + (lap - 1) * lapDuration * 1000;
+        laps.push({
+          session_key: session.session_key,
+          driver_number: driver.driver_number,
+          lap_number: lap,
+          date_start: new Date(lapStart).toISOString(),
+          lap_duration: lapDuration,
+          is_pit_out_lap: lap === 1,
+        });
+        positions.push({
+          session_key: session.session_key,
+          driver_number: driver.driver_number,
+          position: idx + 1,
+          date: new Date(lapStart).toISOString(),
+        });
+      }
+    });
+
+    const track = {
+      points: generateTrackPoints(session.circuit_short_name),
+      source_driver_number: drivers[0].driver_number,
+    };
+
+    return {
+      session,
+      drivers,
+      laps,
+      positions,
+      race_control: [],
+      track,
+      total_laps: totalLaps,
+      start_time: new Date(baseTime).toISOString(),
+      end_time: new Date(baseTime + totalLaps * 90 * 1000).toISOString(),
+    };
+  }
 
   // ... (keeping all the useEffects and logic from the original file unchanged for now)
   // I will only change the render logic below to handle isEmbedded
@@ -294,11 +440,10 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
         }
       } catch (error: unknown) {
         if (!ignore) {
-          setErrorMsg(
-            error instanceof Error ? error.message : 'Unable to load replay sessions from OpenF1.',
-          );
-          setSessions([]);
-          setSelectedSessionKey(null);
+          setDemoMode(true);
+          setErrorMsg(null);
+          setSessions(demoSessions);
+          setSelectedSessionKey(demoSessions[0]?.session_key ?? null);
         }
       } finally {
         if (!ignore) {
@@ -345,13 +490,16 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
         setDataset(replayDataset);
         setReplayMs(0);
         setIsPlaying(false);
+        setDemoMode(false);
         setSelectedDriverNumber(replayDataset.track.source_driver_number);
       } catch (error: unknown) {
         if (!ignore) {
-          setErrorMsg(
-            error instanceof Error ? error.message : 'Unable to build the browser replay.',
-          );
-          setDataset(null);
+          setDemoMode(true);
+          setErrorMsg(null);
+          setDataset(buildDemoDataset(sessionToLoad));
+          setReplayMs(0);
+          setIsPlaying(false);
+          setSelectedDriverNumber(null);
         }
       } finally {
         if (!ignore) {
@@ -370,7 +518,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
   const replayDurationMs = dataset
     ? Math.max(Date.parse(dataset.end_time) - Date.parse(dataset.start_time), 1000)
     : 1000;
-  const normalizedTrack = dataset ? normalizeTrack(dataset.track.points) : [];
+  const normalizedTrack = dataset ? normalizeTrack(resolveTrackPoints(dataset)) : [];
   const trackPath = buildTrackPath(normalizedTrack);
   const currentReplayTime = dataset ? Date.parse(dataset.start_time) + replayMs : 0;
   const markers = dataset ? buildReplayMarkers(dataset, normalizedTrack, currentReplayTime) : [];
@@ -453,6 +601,11 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                 {dataset ? `${dataset.session.circuit_short_name} • LAP ${currentLap}` : 'SYSTEM IDLE'}
               </span>
             </div>
+            {demoMode && (
+              <span className="speed-chip active" style={{ fontSize: '0.55rem', padding: '0.2rem 0.45rem' }}>
+                DEMO MODE
+              </span>
+            )}
             {dataset && (
               <div style={{ display: 'flex', gap: '0.4rem' }}>
                 {REPLAY_SPEEDS.map((speed) => (
@@ -640,21 +793,28 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                 </p>
               </div>
 
-              <div
-                style={{
-                  display: 'inline-flex',
-                  gap: '0.55rem',
-                  alignItems: 'center',
-                  borderRadius: '999px',
-                  padding: '0.5rem 0.85rem',
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid var(--border-light)',
-                }}
-              >
-                <Flag size={14} color={getFlagTone(currentRaceControl?.flag ?? null)} />
-                <span style={{ color: 'var(--text-primary)', fontSize: '0.85rem', fontWeight: 700 }}>
-                  LAP {currentLap || 0} / {dataset.total_laps || '--'}
-                </span>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                {demoMode && (
+                  <span className="speed-chip active" style={{ fontSize: '0.65rem' }}>
+                    DEMO MODE
+                  </span>
+                )}
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    gap: '0.55rem',
+                    alignItems: 'center',
+                    borderRadius: '999px',
+                    padding: '0.5rem 0.85rem',
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid var(--border-light)',
+                  }}
+                >
+                  <Flag size={14} color={getFlagTone(currentRaceControl?.flag ?? null)} />
+                  <span style={{ color: 'var(--text-primary)', fontSize: '0.85rem', fontWeight: 700 }}>
+                    LAP {currentLap || 0} / {dataset.total_laps || '--'}
+                  </span>
+                </div>
               </div>
             </div>
 

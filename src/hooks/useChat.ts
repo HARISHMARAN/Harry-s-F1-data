@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import type { Message, Role, StreamChunk } from '../types/chat';
 
 const API_BASE = import.meta.env.VITE_CHAT_API_BASE ?? '';
+const CHAT_MODE = (import.meta.env.VITE_CHAT_MODE ?? 'offline').toLowerCase();
 
 function generateId(): string {
   return Math.random().toString(36).slice(2, 11);
@@ -17,6 +18,54 @@ function getFriendlyError(err: unknown) {
   return 'Something went wrong. Please try again.';
 }
 
+function localChatReply(input: string) {
+  const text = input.trim().toLowerCase();
+
+  if (!text) {
+    return "Try asking a Formula 1 question, or type 'help' for examples.";
+  }
+
+  if (text.includes('help') || text.includes('what can you do')) {
+    return [
+      'Offline mode is active. I can answer general F1 questions without live data.',
+      'Try: "What do yellow flags mean?"',
+      'Try: "How does qualifying work?"',
+      'Try: "Explain DRS."',
+      'For live results and detailed stats, enable online mode.',
+    ].join('\n');
+  }
+
+  if (text.includes('yellow flag')) {
+    return 'Yellow flags mean danger ahead. Drivers must slow down and no overtaking is allowed in that zone.';
+  }
+
+  if (text.includes('red flag')) {
+    return 'Red flag means the session is stopped due to unsafe conditions. Cars return to the pit lane and await instructions.';
+  }
+
+  if (text.includes('drs')) {
+    return 'DRS (Drag Reduction System) allows a driver to open the rear wing flap in designated zones when within 1.0s of the car ahead, reducing drag and increasing top speed.';
+  }
+
+  if (text.includes('qualifying')) {
+    return 'Qualifying is usually split into Q1, Q2, and Q3. The slowest drivers are eliminated each round, and the fastest in Q3 takes pole position.';
+  }
+
+  if (text.includes('pit stop')) {
+    return 'Pit stops are for tyre changes and repairs. Strategy often balances tyre life, pace, and track position.';
+  }
+
+  if (text.includes('championship') && text.includes('most')) {
+    return 'Michael Schumacher and Lewis Hamilton share the record for most F1 World Championships with 7 each.';
+  }
+
+  return [
+    'Offline mode: I can answer general F1 concepts, rules, and strategy.',
+    'For live stats and detailed historical data, enable online mode.',
+    "Try asking: 'What is DRS?' or 'Explain yellow flags.'",
+  ].join('\n');
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -28,6 +77,24 @@ export function useChat() {
     if (!content.trim() || isLoading) return;
 
     const trimmed = content.trim();
+
+    if (CHAT_MODE !== 'online') {
+      const userMessage: Message = {
+        id: generateId(),
+        role: 'user',
+        content: trimmed,
+        timestamp: new Date(),
+      };
+      const assistantMessage: Message = {
+        id: generateId(),
+        role: 'assistant',
+        content: localChatReply(trimmed),
+        timestamp: new Date(),
+        toolCalls: ['local_knowledge'],
+      };
+      setMessages((prev) => [...prev, userMessage, assistantMessage]);
+      return;
+    }
 
     const userMessage: Message = {
       id: generateId(),
