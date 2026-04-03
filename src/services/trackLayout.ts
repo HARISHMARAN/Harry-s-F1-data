@@ -1,4 +1,5 @@
 import type { ReplayTrackPoint } from '../types/f1';
+import { getTrackSvgForCircuit } from './trackLibrary';
 
 const TRACK_WIDTH = 860;
 const TRACK_HEIGHT = 560;
@@ -69,6 +70,48 @@ export function generateTrackPoints(seed: string, pointCount = 140): ReplayTrack
   }
 
   return rawPoints;
+}
+
+function svgPathToPoints(svgText: string, samples = 220): ReplayTrackPoint[] {
+  if (typeof window === 'undefined') return [];
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgText, 'image/svg+xml');
+  const paths = Array.from(doc.querySelectorAll('path'));
+  if (!paths.length) return [];
+
+  const chosen = paths.reduce((longest, current) => {
+    const currentLength = current.getAttribute('d')?.length ?? 0;
+    const longestLength = longest.getAttribute('d')?.length ?? 0;
+    return currentLength > longestLength ? current : longest;
+  }, paths[0]);
+
+  const d = chosen.getAttribute('d');
+  if (!d) return [];
+
+  const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  pathEl.setAttribute('d', d);
+  svgEl.appendChild(pathEl);
+
+  const total = pathEl.getTotalLength();
+  if (!Number.isFinite(total) || total <= 0) return [];
+
+  const points: ReplayTrackPoint[] = [];
+  for (let i = 0; i <= samples; i += 1) {
+    const pt = pathEl.getPointAtLength((total * i) / samples);
+    points.push({ x: pt.x, y: pt.y });
+  }
+  return points;
+}
+
+export function getTrackPointsForCircuit(seed: string) {
+  const svg = getTrackSvgForCircuit(seed);
+  if (svg) {
+    const points = svgPathToPoints(svg);
+    if (points.length) return points;
+  }
+  return generateTrackPoints(seed);
 }
 
 export function normalizeTrack(points: ReplayTrackPoint[]) {

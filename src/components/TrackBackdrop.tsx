@@ -1,5 +1,5 @@
 import type { DashboardSession } from '../types/f1';
-import { buildTrackPath, generateTrackPoints, normalizeTrack } from '../services/trackLayout';
+import { buildTrackPath, getTrackPointsForCircuit, normalizeTrack } from '../services/trackLayout';
 
 interface TrackBackdropProps {
   session: DashboardSession | null;
@@ -7,7 +7,7 @@ interface TrackBackdropProps {
 
 export default function TrackBackdrop({ session }: TrackBackdropProps) {
   const seed = `${session?.circuit_short_name ?? session?.location ?? 'circuit'}-${session?.session_key ?? ''}`;
-  const points = normalizeTrack(generateTrackPoints(seed));
+  const points = normalizeTrack(getTrackPointsForCircuit(seed));
   const trackPath = buildTrackPath(points);
 
   return (

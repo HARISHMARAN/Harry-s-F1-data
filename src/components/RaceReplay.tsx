@@ -10,7 +10,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { fetchReplayDataset, fetchReplaySessions } from '../services/replay';
-import { buildTrackPath, generateTrackPoints, normalizeTrack } from '../services/trackLayout';
+import { buildTrackPath, getTrackPointsForCircuit, normalizeTrack } from '../services/trackLayout';
 import type {
   ReplayDataset,
   ReplayDriver,
@@ -120,8 +120,8 @@ function pointAtFraction(points: ReplayTrackPoint[], fraction: number) {
 function resolveTrackPoints(dataset: ReplayDataset | null): ReplayTrackPoint[] {
   if (!dataset) return [];
   if (dataset.track?.points?.length) return dataset.track.points;
-  const seed = `${dataset.session?.circuit_short_name ?? 'circuit'}-${dataset.session?.year ?? ''}`;
-  return generateTrackPoints(seed);
+  const seed = `${dataset.session?.circuit_short_name ?? dataset.session?.location ?? 'circuit'}-${dataset.session?.year ?? ''}`;
+  return getTrackPointsForCircuit(seed);
 }
 
 function getLapState(laps: ReplayLap[], replayTime: number) {
@@ -397,7 +397,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
     });
 
     const track = {
-      points: generateTrackPoints(session.circuit_short_name),
+      points: getTrackPointsForCircuit(session.circuit_short_name),
       source_driver_number: drivers[0].driver_number,
     };
 
