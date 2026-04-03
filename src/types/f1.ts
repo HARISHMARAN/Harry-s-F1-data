@@ -43,7 +43,7 @@ export interface ReplaySessionSummary {
   session_type: string;
   session_name: string;
   date_start: string;
-  date_end: string;
+  date_end: string | null;
   meeting_key: number;
   circuit_short_name: string;
   country_name: string;
@@ -69,7 +69,7 @@ export interface ReplayLap {
   session_key: number;
   driver_number: number;
   lap_number: number;
-  date_start: string;
+  date_start: string | null;
   lap_duration: number | null;
   is_pit_out_lap: boolean;
 }

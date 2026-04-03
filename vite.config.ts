@@ -10,6 +10,10 @@ export default defineConfig({
         target: 'http://localhost:8086',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/influx/, '')
+      },
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
       }
     }
   }

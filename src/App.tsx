@@ -5,13 +5,14 @@ import SessionInfo from './components/SessionInfo';
 import MaxTracker from './components/MaxTracker';
 import AddonLibrary from './components/AddonLibrary';
 import RaceReplay from './components/RaceReplay';
+import FormulaChat from './components/Chat/FormulaChat';
 import { fetchLiveDashboardData } from './services/openf1';
 import { fetchHistoricalData, fetchSeasonRaces } from './services/jolpica';
 import { AlertCircle } from 'lucide-react';
 import type { DashboardData, DashboardSession, DriverPosition, MaxStats, SeasonRace } from './types/f1';
 import './index.css';
 
-type ViewMode = 'LIVE' | 'HISTORICAL' | 'REPLAY' | 'ADDONS';
+type ViewMode = 'LIVE' | 'HISTORICAL' | 'REPLAY' | 'ADDONS' | 'CHAT';
 
 function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('LIVE');
@@ -134,6 +135,13 @@ function App() {
           >
             ADD-ON LIBRARY
           </button>
+          <button 
+            className={`toggle-btn ${viewMode === 'CHAT' ? 'active' : ''}`}
+            style={{ backgroundColor: viewMode === 'CHAT' ? 'rgba(225, 6, 0, 0.16)' : 'transparent', boxShadow: viewMode === 'CHAT' ? '0 0 10px rgba(225, 6, 0, 0.25)' : 'none' }}
+            onClick={() => setViewMode('CHAT')}
+          >
+            AI CHATBOT
+          </button>
         </div>
       </div>
 
@@ -173,6 +181,10 @@ function App() {
         <AddonLibrary onOpenReplay={() => setViewMode('REPLAY')} />
       ) : viewMode === 'REPLAY' ? (
         <RaceReplay />
+      ) : viewMode === 'CHAT' ? (
+        <div style={{ maxWidth: '1000px', margin: '2rem auto', padding: '0 1rem' }}>
+          <FormulaChat />
+        </div>
       ) : loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
           <div className="pulsing-dot" style={{ width: 24, height: 24 }} />

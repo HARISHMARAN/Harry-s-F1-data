@@ -152,21 +152,27 @@ function buildTrackPath(points: ReplayTrackPoint[]) {
 }
 
 function getLapState(laps: ReplayLap[], replayTime: number) {
-  if (laps.length === 0) {
+  const validLaps = laps.filter((lap) => Boolean(lap.date_start));
+
+  if (validLaps.length === 0) {
     return { lapNumber: 0, lapFraction: 0, globalProgress: 0 };
   }
 
-  const currentLapIndex = findLatestIndexByTime(laps, replayTime, (lap) => Date.parse(lap.date_start));
+  const currentLapIndex = findLatestIndexByTime(
+    validLaps,
+    replayTime,
+    (lap) => Date.parse(lap.date_start ?? ''),
+  );
 
   if (currentLapIndex === -1) {
     return { lapNumber: 0, lapFraction: 0, globalProgress: 0 };
   }
 
-  const currentLap = laps[currentLapIndex];
-  const nextLap = laps[currentLapIndex + 1];
-  const lapStart = Date.parse(currentLap.date_start);
+  const currentLap = validLaps[currentLapIndex];
+  const nextLap = validLaps[currentLapIndex + 1];
+  const lapStart = Date.parse(currentLap.date_start ?? '');
   const lapEnd = nextLap
-    ? Date.parse(nextLap.date_start)
+    ? Date.parse(nextLap.date_start ?? '')
     : currentLap.lap_duration
       ? lapStart + currentLap.lap_duration * 1000
       : lapStart + 90_000;
@@ -241,7 +247,21 @@ function buildReplayMarkers(
 function pickDefaultSession(sessions: ReplaySessionSummary[]) {
   const now = Date.now();
 
-  return sessions.find((session) => Date.parse(session.date_end) <= now) ?? sessions[0] ?? null;
+  const completed = sessions.find((session) => {
+    const endMs = Date.parse(session.date_end ?? '');
+    return Number.isFinite(endMs) && endMs <= now;
+  });
+
+  if (completed) {
+    return completed;
+  }
+
+  const started = sessions.find((session) => {
+    const startMs = Date.parse(session.date_start);
+    return Number.isFinite(startMs) && startMs <= now;
+  });
+
+  return started ?? sessions[0] ?? null;
 }
 
 export default function RaceReplay() {

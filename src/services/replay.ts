@@ -24,12 +24,23 @@ async function fetchOpenF1<T>(
   retries = 3,
 ): Promise<T> {
   const url = new URL(`${OPEN_F1_BASE_URL}/${endpoint}`);
+  const queryParts: string[] = [];
 
   Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined) {
-      url.searchParams.set(key, String(value));
+    if (value === undefined) {
+      return;
     }
+
+    const encodedValue = encodeURIComponent(String(value));
+    const encodedKey =
+      key.includes('>') || key.includes('<') ? key : encodeURIComponent(key);
+
+    queryParts.push(`${encodedKey}=${encodedValue}`);
   });
+
+  if (queryParts.length > 0) {
+    url.search = queryParts.join('&');
+  }
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     const response = await fetch(url.toString());
@@ -142,11 +153,15 @@ function pickReferenceLap(laps: ReplayLap[], driverNumber: number) {
     laps.find(
       (lap) =>
         lap.driver_number === driverNumber &&
+        lap.date_start &&
         !lap.is_pit_out_lap &&
         lap.lap_duration !== null &&
         lap.lap_duration > 0,
     ) ??
-    laps.find((lap) => lap.lap_duration !== null && lap.lap_duration > 0)
+    laps.find(
+      (lap) =>
+        lap.date_start && lap.lap_duration !== null && lap.lap_duration > 0,
+    )
   );
 }
 
@@ -155,20 +170,32 @@ function buildReplayEndTime(
   laps: ReplayLap[],
   positions: ReplayPositionSample[],
 ) {
-  const candidates = [Date.parse(session.date_end)];
+  const candidates: number[] = [];
+  const sessionEndMs = Date.parse(session.date_end ?? '');
+
+  if (Number.isFinite(sessionEndMs)) {
+    candidates.push(sessionEndMs);
+  }
 
   const finalLap = laps
-    .filter((lap) => lap.lap_duration !== null)
+    .filter((lap) => lap.lap_duration !== null && lap.date_start)
     .at(-1);
 
-  if (finalLap?.lap_duration) {
-    candidates.push(Date.parse(finalLap.date_start) + finalLap.lap_duration * 1000);
+  if (finalLap?.lap_duration && finalLap.date_start) {
+    const finalLapStart = Date.parse(finalLap.date_start);
+    if (Number.isFinite(finalLapStart)) {
+      candidates.push(finalLapStart + finalLap.lap_duration * 1000);
+    }
   }
 
   const lastPositionSample = positions.at(-1);
 
   if (lastPositionSample) {
     candidates.push(Date.parse(lastPositionSample.date));
+  }
+
+  if (candidates.length === 0) {
+    candidates.push(Date.parse(session.date_start));
   }
 
   return new Date(Math.max(...candidates)).toISOString();
@@ -185,6 +212,35 @@ export async function fetchReplaySessions(year: number): Promise<ReplaySessionSu
   );
 }
 
+function findLapWindow(laps: ReplayLap[], driverNumber: number) {
+  const driverLaps = laps
+    .filter((lap) => lap.driver_number === driverNumber && lap.date_start)
+    .sort(
+      (left, right) =>
+        Date.parse(left.date_start ?? '') - Date.parse(right.date_start ?? ''),
+    );
+
+  for (let i = 0; i < driverLaps.length - 1; i += 1) {
+    const start = driverLaps[i].date_start;
+    const next = driverLaps[i + 1].date_start;
+    const startMs = Date.parse(start ?? '');
+    const nextMs = Date.parse(next ?? '');
+
+    if (Number.isFinite(startMs) && Number.isFinite(nextMs) && nextMs > startMs) {
+      return { start, end: new Date(nextMs).toISOString() };
+    }
+  }
+
+  const first = driverLaps[0]?.date_start;
+  const firstMs = Date.parse(first ?? '');
+
+  if (first && Number.isFinite(firstMs)) {
+    return { start: first, end: new Date(firstMs + 90_000).toISOString() };
+  }
+
+  return null;
+}
+
 export async function fetchReplayDataset(
   session: ReplaySessionSummary,
   onProgress?: (message: string) => void,
@@ -195,26 +251,67 @@ export async function fetchReplayDataset(
     fetchOpenF1<ReplayDriver[]>('drivers', { session_key: session.session_key }),
     fetchOpenF1<ReplayLap[]>('laps', { session_key: session.session_key }),
     fetchOpenF1<ReplayPositionSample[]>('position', { session_key: session.session_key }),
-    fetchOpenF1<ReplayRaceControlMessage[]>('race_control', { session_key: session.session_key }),
+    fetchOpenF1<ReplayRaceControlMessage[]>('race_control', { session_key: session.session_key }).catch(
+      () => [],
+    ),
   ]);
+
+  if (drivers.length === 0 || positions.length === 0) {
+    throw new Error('No timing data is available yet for this race replay.');
+  }
 
   const sourceDriverNumber = pickReplayWinner(positions, drivers);
   const referenceLap = pickReferenceLap(laps, sourceDriverNumber);
+  const lapWindow = findLapWindow(laps, sourceDriverNumber);
 
   let trackPoints = buildFallbackTrack();
 
-  if (referenceLap?.lap_duration) {
+  if (lapWindow) {
     onProgress?.('Loading track geometry for the replay map...');
+    try {
+      const locationSamples = await fetchOpenF1<ReplayLocationSample[]>('location', {
+        session_key: session.session_key,
+        driver_number: sourceDriverNumber,
+        'date>=': lapWindow.start,
+        'date<=': lapWindow.end,
+      });
 
-    const lapEnd = new Date(Date.parse(referenceLap.date_start) + referenceLap.lap_duration * 1000);
-    const locationSamples = await fetchOpenF1<ReplayLocationSample[]>('location', {
-      session_key: session.session_key,
-      driver_number: sourceDriverNumber,
-      'date>=': referenceLap.date_start,
-      'date<=': lapEnd.toISOString(),
-    });
+      trackPoints = buildTrackOutline(locationSamples);
+    } catch {
+      trackPoints = buildFallbackTrack();
+    }
+  } else if (referenceLap?.lap_duration && referenceLap.date_start) {
+    onProgress?.('Loading track geometry for the replay map...');
+    try {
+      const lapStart = Date.parse(referenceLap.date_start);
+      if (Number.isFinite(lapStart)) {
+        const lapEnd = new Date(lapStart + referenceLap.lap_duration * 1000);
+        const locationSamples = await fetchOpenF1<ReplayLocationSample[]>('location', {
+          session_key: session.session_key,
+          driver_number: sourceDriverNumber,
+          'date>=': referenceLap.date_start,
+          'date<=': lapEnd.toISOString(),
+        });
 
-    trackPoints = buildTrackOutline(locationSamples);
+        trackPoints = buildTrackOutline(locationSamples);
+      }
+    } catch {
+      trackPoints = buildFallbackTrack();
+    }
+  } else {
+    onProgress?.('Loading track geometry from session samples...');
+    try {
+      const locationSamples = await fetchOpenF1<ReplayLocationSample[]>('location', {
+        session_key: session.session_key,
+        driver_number: sourceDriverNumber,
+      });
+
+      if (locationSamples.length > 0) {
+        trackPoints = buildTrackOutline(locationSamples);
+      }
+    } catch {
+      trackPoints = buildFallbackTrack();
+    }
   }
 
   return {
