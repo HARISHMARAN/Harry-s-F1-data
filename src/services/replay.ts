@@ -24,23 +24,11 @@ async function fetchOpenF1<T>(
   retries = 3,
 ): Promise<T> {
   const url = new URL(`${OPEN_F1_BASE_URL}/${endpoint}`);
-  const queryParts: string[] = [];
-
   Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined) {
-      return;
+    if (value !== undefined) {
+      url.searchParams.set(key, String(value));
     }
-
-    const encodedValue = encodeURIComponent(String(value));
-    const encodedKey =
-      key.includes('>') || key.includes('<') ? key : encodeURIComponent(key);
-
-    queryParts.push(`${encodedKey}=${encodedValue}`);
   });
-
-  if (queryParts.length > 0) {
-    url.search = queryParts.join('&');
-  }
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     const response = await fetch(url.toString());

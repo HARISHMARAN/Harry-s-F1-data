@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'addons/**']),
+  globalIgnores(['dist', 'addons/**', 'venv/**', 'f1-race-replay/**']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
