@@ -14,3 +14,13 @@ sources here for clarity.
 - Suzuka — https://commons.wikimedia.org/wiki/File:F1_circuits_2014-2018_-_Suzuka_Circuit_(version_2).svg
 - Interlagos — https://commons.wikimedia.org/wiki/File:F1_circuits_2014-2018_-_Aut%C3%B3dromo_Jos%C3%A9_Carlos_Pace_(version_2).svg
 - Circuit Gilles Villeneuve — https://openclipart.org/detail/291908/f1-circuits-20142018-circuit-gilles-villeneuve-version-2
+- Hockenheimring — https://commons.wikimedia.org/wiki/File:F1_circuits_2014-2018_-_Hockenheimring_(version_2).svg
+- Shanghai International Circuit — https://commons.wikimedia.org/wiki/File:F1_circuits_2014-2018_-_Shanghai_International_Circuit_(version_2).svg
+- Hungaroring — https://commons.wikimedia.org/wiki/File:F1_circuits_2014-2018_-_Hungaroring_(version_2).svg
+- Red Bull Ring — https://commons.wikimedia.org/wiki/File:F1_circuits_2014-2018_-_Red_Bull_Ring_(version_2).svg
+- Sepang International Circuit — https://commons.wikimedia.org/wiki/File:F1_circuits_2014-2018_-_Sepang_International_Circuit_(version_2).svg
+- Circuit de Barcelona-Catalunya — https://commons.wikimedia.org/wiki/File:F1_circuits_2014-2018_-_Circuit_de_Barcelona-Catalunya_(version_2).svg
+- Marina Bay Street Circuit — https://commons.wikimedia.org/wiki/File:F1_circuits_2014-2018_-_Marina_Bay_Street_Circuit_(version_2).svg
+- Yas Marina Circuit — https://commons.wikimedia.org/wiki/File:F1_circuits_2014-2018_-_Yas_Marina_Circuit_(version_2).svg
+- Autodromo Hermanos Rodriguez — https://commons.wikimedia.org/wiki/File:F1_circuits_2014-2018_-_Aut%C3%B3dromo_Hermanos_Rodr%C3%ADguez_(version_2).svg
+- Baku City Circuit — https://commons.wikimedia.org/wiki/File:F1_circuits_2014-2018_-_Baku_City_Circuit_(version_2).svg
