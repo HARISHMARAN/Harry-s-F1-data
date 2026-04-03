@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
-import type { Message, Role, StreamChunk } from '../types/chat';
+import type { Message } from '../types/chat';
+import { getChatbotResponse } from '../services/chatLogic';
 
 function generateId(): string {
   return Math.random().toString(36).slice(2, 11);
@@ -28,154 +29,64 @@ export function useChat() {
     setActiveToolCall(null);
 
     const assistantId = generateId();
-    let streamingStarted = false;
 
     try {
-      const history = messages.map((m) => ({ role: m.role as Role, content: m.content }));
-
-      const response = await fetch('/api/v1/chat/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: trimmed,
-          history,
-          conversation_id: conversationId.current ?? undefined,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
-      }
-
-      if (!response.body) {
-        throw new Error('No response stream available.');
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-
-          let chunk: StreamChunk;
-          try {
-            chunk = JSON.parse(line.slice(6));
-          } catch {
-            continue;
-          }
-
-          if (chunk.type === 'delta') {
-            if (!streamingStarted) {
-              streamingStarted = true;
-              setIsLoading(false);
-              setActiveToolCall(null);
-              setMessages((prev) => [
-                ...prev,
-                {
-                  id: assistantId,
-                  role: 'assistant',
-                  content: chunk.content,
-                  timestamp: new Date(),
-                  streaming: true,
-                  toolCalls: [],
-                },
-              ]);
-            } else {
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId
-                    ? { ...m, content: m.content + chunk.content }
-                    : m
-                )
-              );
-            }
-          } else if (chunk.type === 'tool_call') {
-            const toolName = chunk.tool_name ?? 'tool';
-            setActiveToolCall(toolName);
-            // Append tool name to the streaming message once it exists
-            if (streamingStarted) {
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId
-                    ? { ...m, toolCalls: [...(m.toolCalls ?? []), toolName] }
-                    : m
-                )
-              );
-            }
-          } else if (chunk.type === 'done') {
-            if (chunk.conversation_id) {
-              conversationId.current = chunk.conversation_id;
-            }
-            setActiveToolCall(null);
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId ? { ...m, streaming: false } : m
-              )
-            );
-          } else if (chunk.type === 'error') {
-            setActiveToolCall(null);
-            if (streamingStarted) {
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId
-                    ? { ...m, content: chunk.content, streaming: false, error: true }
-                    : m
-                )
-              );
-            } else {
-              setMessages((prev) => [
-                ...prev,
-                {
-                  id: assistantId,
-                  role: 'assistant',
-                  content: chunk.content,
-                  timestamp: new Date(),
-                  error: true,
-                },
-              ]);
-            }
-            setIsLoading(false);
-          }
-        }
-      }
-    } catch (err) {
+      setActiveToolCall('f1_knowledge');
+      const fullResponse = await getChatbotResponse(trimmed);
       setActiveToolCall(null);
-      const errorContent =
-        err instanceof Error ? err.message : 'Something went wrong. Please try again.';
-
-      if (streamingStarted) {
+      
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: assistantId,
+          role: 'assistant',
+          content: '',
+          timestamp: new Date(),
+          streaming: true,
+          toolCalls: ['f1_knowledge'],
+        },
+      ]);
+      
+      // Simulate streaming response
+      const words = fullResponse.split(' ');
+      let currentString = '';
+      
+      for (let i = 0; i < words.length; i++) {
+        currentString += (i === 0 ? '' : ' ') + words[i];
+        
+        await new Promise(resolve => setTimeout(resolve, 30));
+        
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId
-              ? { ...m, content: errorContent, streaming: false, error: true }
+              ? { ...m, content: currentString }
               : m
           )
         );
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: assistantId,
-            role: 'assistant',
-            content: errorContent,
-            timestamp: new Date(),
-            error: true,
-          },
-        ]);
       }
+      
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId ? { ...m, streaming: false } : m
+        )
+      );
+
+    } catch {
+      setActiveToolCall(null);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: assistantId,
+          role: 'assistant',
+          content: 'Something went wrong while checking the F1 archives. Please try again.',
+          timestamp: new Date(),
+          error: true,
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }
-  }, [messages, isLoading]);
+  }, [isLoading]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
