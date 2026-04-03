@@ -21,6 +21,7 @@ export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeToolCall, setActiveToolCall] = useState<string | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
   const conversationId = useRef<string | null>(null);
 
   const sendMessage = useCallback(async (content: string) => {
@@ -38,6 +39,7 @@ export function useChat() {
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
     setActiveToolCall(null);
+    setLastError(null);
 
     const assistantId = generateId();
     let streamingStarted = false;
@@ -162,6 +164,7 @@ export function useChat() {
             }
           } else if (chunk.type === 'error') {
             setActiveToolCall(null);
+            setLastError(chunk.content);
             setIsLoading(false);
             if (streamingStarted) {
               setMessages((prev) =>
@@ -190,6 +193,7 @@ export function useChat() {
       setActiveToolCall(null);
       setIsLoading(false);
       const errorContent = getFriendlyError(err);
+      setLastError(errorContent);
 
       if (streamingStarted) {
         setMessages((prev) =>
@@ -218,7 +222,8 @@ export function useChat() {
     setMessages([]);
     conversationId.current = null;
     setActiveToolCall(null);
+    setLastError(null);
   }, []);
 
-  return { messages, isLoading, activeToolCall, sendMessage, clearMessages };
+  return { messages, isLoading, activeToolCall, lastError, sendMessage, clearMessages };
 }

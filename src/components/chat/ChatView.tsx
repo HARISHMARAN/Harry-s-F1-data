@@ -8,13 +8,21 @@ import WelcomeScreen from './WelcomeScreen';
 import './chat.css';
 
 export default function ChatView() {
-  const { messages, isLoading, activeToolCall, sendMessage, clearMessages } = useChat();
+  const { messages, isLoading, activeToolCall, lastError, sendMessage, clearMessages } = useChat();
   const bottomRef = useRef<HTMLDivElement>(null);
   const [apiStatus, setApiStatus] = useState<'checking' | 'ok' | 'degraded' | 'down'>('checking');
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    if (!lastError) return;
+    setToast(lastError);
+    const timer = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(timer);
+  }, [lastError]);
 
   useEffect(() => {
     let isMounted = true;
@@ -61,6 +69,12 @@ export default function ChatView() {
       <ChatHeader onClear={clearMessages} hasMessages={messages.length > 0} status={apiStatus} />
 
       <main className="chat-body">
+        {toast && (
+          <div className="chat-toast">
+            <span className="chat-toast-dot" />
+            {toast}
+          </div>
+        )}
         {messages.length === 0 ? (
           <WelcomeScreen onSuggestion={sendMessage} />
         ) : (
