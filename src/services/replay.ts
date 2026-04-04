@@ -10,71 +10,31 @@ import type {
 } from '../types/f1';
 
 const OPEN_F1_BASE_URL = 'https://api.openf1.org/v1';
-const TRACK_FALLBACK_POINTS = 180;
-
-function delay(ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
+const TRACK_FALLBACK_POINTS = 100;
 
 async function fetchOpenF1<T>(
   endpoint: string,
-  params: Record<string, string | number | undefined>,
-  retries = 3,
+  params: Record<string, string | number>,
 ): Promise<T> {
   const url = new URL(`${OPEN_F1_BASE_URL}/${endpoint}`);
   Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined) {
-      url.searchParams.set(key, String(value));
-    }
+    url.searchParams.append(key, String(value));
   });
 
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
-    const response = await fetch(url.toString());
-    const text = await response.text();
-
-    let payload: unknown = null;
-
-    try {
-      payload = text ? (JSON.parse(text) as unknown) : null;
-    } catch {
-      payload = text;
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    if (response.status === 404) {
+      return [] as unknown as T;
     }
-
-    const isRateLimited =
-      response.status === 429 ||
-      (typeof payload === 'object' &&
-        payload !== null &&
-        'error' in payload &&
-        String(payload.error).toLowerCase().includes('too many requests'));
-
-    if (response.ok && !isRateLimited) {
-      return payload as T;
-    }
-
-    if (isRateLimited && attempt < retries) {
-      await delay(700 * (attempt + 1));
-      continue;
-    }
-
-    if (typeof payload === 'object' && payload !== null && 'detail' in payload) {
-      throw new Error(String(payload.detail));
-    }
-
-    if (typeof payload === 'object' && payload !== null && 'error' in payload) {
-      throw new Error(String(payload.error));
-    }
-
-    throw new Error(`OpenF1 request failed for ${endpoint}.`);
+    throw new Error(`Failed to fetch from OpenF1: ${response.statusText}`);
   }
-
-  throw new Error(`OpenF1 request failed for ${endpoint}.`);
+  return response.json();
 }
 
 function buildFallbackTrack(): ReplayTrackPoint[] {
   return Array.from({ length: TRACK_FALLBACK_POINTS }, (_, index) => {
     const angle = (index / TRACK_FALLBACK_POINTS) * Math.PI * 2;
+    // Circular wobbly track as a last resort
     const radiusX = 430 + Math.sin(angle * 3) * 40;
     const radiusY = 250 + Math.cos(angle * 2) * 25;
 
@@ -105,35 +65,41 @@ function buildTrackOutline(samples: ReplayLocationSample[]): ReplayTrackPoint[] 
     const deltaX = currentPoint.x - previousPoint.x;
     const deltaY = currentPoint.y - previousPoint.y;
 
-    if (Math.hypot(deltaX, deltaY) >= 12) {
+    // Use a very low threshold to ensure we get a shape even with small coordinate ranges
+    if (Math.hypot(deltaX, deltaY) >= 2) {
       uniquePoints.push(currentPoint);
       previousPoint = currentPoint;
     }
   }
 
+  // If we couldn't build a real track map from telemetry, return empty to trigger next driver attempt
   if (uniquePoints.length < 40) {
-    return buildFallbackTrack();
+    return [];
   }
 
-  const step = Math.max(1, Math.floor(uniquePoints.length / 220));
-  const simplified = uniquePoints.filter((_, index) => index % step === 0);
-
-  if (simplified.length > 2) {
-    simplified.push(simplified[0]);
-  }
-
-  return simplified;
+  return uniquePoints;
 }
 
-function pickReplayWinner(positions: ReplayPositionSample[], drivers: ReplayDriver[]) {
-  const leaderSnapshots = positions.filter((sample) => sample.position === 1);
-  const lastLeader = leaderSnapshots.at(-1);
+function pickReplayWinner(
+  positions: ReplayPositionSample[],
+  drivers: ReplayDriver[],
+) {
+  if (positions.length === 0) return 1;
 
-  if (lastLeader) {
-    return lastLeader.driver_number;
-  }
+  const lastPositions = new Map<number, number>();
+  positions.forEach((p) => lastPositions.set(p.driver_number, p.position));
 
-  return drivers[0]?.driver_number ?? 1;
+  let winnerNumber = 1;
+  let bestPos = 999;
+
+  lastPositions.forEach((pos, num) => {
+    if (pos < bestPos) {
+      bestPos = pos;
+      winnerNumber = num;
+    }
+  });
+
+  return winnerNumber;
 }
 
 function pickReferenceLap(laps: ReplayLap[], driverNumber: number) {
@@ -141,11 +107,10 @@ function pickReferenceLap(laps: ReplayLap[], driverNumber: number) {
     laps.find(
       (lap) =>
         lap.driver_number === driverNumber &&
-        lap.date_start &&
-        !lap.is_pit_out_lap &&
         lap.lap_duration !== null &&
-        lap.lap_duration > 0,
-    ) ??
+        lap.lap_duration > 0 &&
+        !lap.is_pit_out_lap,
+    ) ||
     laps.find(
       (lap) =>
         lap.date_start && lap.lap_duration !== null && lap.lap_duration > 0,
@@ -189,7 +154,9 @@ function buildReplayEndTime(
   return new Date(Math.max(...candidates)).toISOString();
 }
 
-export async function fetchReplaySessions(year: number): Promise<ReplaySessionSummary[]> {
+export async function fetchReplaySessions(
+  year: number,
+): Promise<ReplaySessionSummary[]> {
   const sessions = await fetchOpenF1<ReplaySessionSummary[]>('sessions', {
     year,
     session_name: 'Race',
@@ -200,6 +167,11 @@ export async function fetchReplaySessions(year: number): Promise<ReplaySessionSu
   );
 }
 
+function sanitizeDate(dateStr: string): string {
+  // OpenF1 API is picky about date format - prefers YYYY-MM-DDTHH:MM:SS
+  return dateStr.split('.')[0].split('+')[0].replace('Z', '');
+}
+
 function findLapWindow(laps: ReplayLap[], driverNumber: number) {
   const driverLaps = laps
     .filter((lap) => lap.driver_number === driverNumber && lap.date_start)
@@ -208,22 +180,22 @@ function findLapWindow(laps: ReplayLap[], driverNumber: number) {
         Date.parse(left.date_start ?? '') - Date.parse(right.date_start ?? ''),
     );
 
-  for (let i = 0; i < driverLaps.length - 1; i += 1) {
-    const start = driverLaps[i].date_start;
-    const next = driverLaps[i + 1].date_start;
-    const startMs = Date.parse(start ?? '');
-    const nextMs = Date.parse(next ?? '');
-
-    if (start && Number.isFinite(startMs) && Number.isFinite(nextMs) && nextMs > startMs) {
-      return { start, end: new Date(nextMs).toISOString() };
+  // Try to find a nice clean lap (not lap 1, not pit lap)
+  for (let i = 1; i < driverLaps.length - 1; i += 1) {
+    const lap = driverLaps[i];
+    const next = driverLaps[i + 1];
+    if (!lap.is_pit_out_lap && lap.lap_duration && lap.date_start && next.date_start) {
+      return { start: lap.date_start, end: next.date_start };
     }
   }
 
-  const first = driverLaps[0]?.date_start;
-  const firstMs = Date.parse(first ?? '');
-
-  if (first && Number.isFinite(firstMs)) {
-    return { start: first, end: new Date(firstMs + 90_000).toISOString() };
+  // Fallback to any lap window
+  for (let i = 0; i < driverLaps.length - 1; i += 1) {
+    const start = driverLaps[i].date_start;
+    const next = driverLaps[i + 1].date_start;
+    if (start && next) {
+      return { start, end: next };
+    }
   }
 
   return null;
@@ -238,10 +210,12 @@ export async function fetchReplayDataset(
   const [drivers, laps, positions, raceControl] = await Promise.all([
     fetchOpenF1<ReplayDriver[]>('drivers', { session_key: session.session_key }),
     fetchOpenF1<ReplayLap[]>('laps', { session_key: session.session_key }),
-    fetchOpenF1<ReplayPositionSample[]>('position', { session_key: session.session_key }),
-    fetchOpenF1<ReplayRaceControlMessage[]>('race_control', { session_key: session.session_key }).catch(
-      () => [],
-    ),
+    fetchOpenF1<ReplayPositionSample[]>('position', {
+      session_key: session.session_key,
+    }),
+    fetchOpenF1<ReplayRaceControlMessage[]>('race_control', {
+      session_key: session.session_key,
+    }).catch(() => []),
   ]);
 
   if (drivers.length === 0 || positions.length === 0) {
@@ -250,56 +224,59 @@ export async function fetchReplayDataset(
 
   const sourceDriverNumber = pickReplayWinner(positions, drivers);
   const referenceLap = pickReferenceLap(laps, sourceDriverNumber);
-  const lapWindow = findLapWindow(laps, sourceDriverNumber);
+  
+  let trackPoints: ReplayTrackPoint[] = [];
 
-  let trackPoints = buildFallbackTrack();
+  // Try to get track from multiple potential drivers if needed
+  const candidateDrivers = [
+    sourceDriverNumber,
+    ...drivers.map(d => d.driver_number).filter(n => n !== sourceDriverNumber).slice(0, 3)
+  ];
 
-  if (lapWindow) {
-    onProgress?.('Loading track geometry for the replay map...');
+  for (const driverNum of candidateDrivers) {
+    if (trackPoints.length >= 40) break;
+
+    const lapWindow = findLapWindow(laps, driverNum);
+    if (!lapWindow) continue;
+
+    onProgress?.(`Tracing track geometry using driver ${driverNum}...`);
     try {
-      const locationSamples = await fetchOpenF1<ReplayLocationSample[]>('location', {
-        session_key: session.session_key,
-        driver_number: sourceDriverNumber,
-        'date>=': lapWindow.start,
-        'date<=': lapWindow.end,
-      });
+      const locationSamples = await fetchOpenF1<ReplayLocationSample[]>(
+        'location',
+        {
+          session_key: session.session_key,
+          driver_number: driverNum,
+          'date>=': sanitizeDate(lapWindow.start),
+          'date<=': sanitizeDate(lapWindow.end),
+        },
+      );
 
       trackPoints = buildTrackOutline(locationSamples);
     } catch {
-      trackPoints = buildFallbackTrack();
+      continue;
     }
-  } else if (referenceLap?.lap_duration && referenceLap.date_start) {
-    onProgress?.('Loading track geometry for the replay map...');
+  }
+
+  // Final fallback: try whole session samples for the winner
+  if (trackPoints.length < 40) {
+    onProgress?.('Attempting session-wide track recovery...');
     try {
-      const lapStart = Date.parse(referenceLap.date_start);
-      if (Number.isFinite(lapStart)) {
-        const lapEnd = new Date(lapStart + referenceLap.lap_duration * 1000);
-        const locationSamples = await fetchOpenF1<ReplayLocationSample[]>('location', {
+      const locationSamples = await fetchOpenF1<ReplayLocationSample[]>(
+        'location',
+        {
           session_key: session.session_key,
           driver_number: sourceDriverNumber,
-          'date>=': referenceLap.date_start,
-          'date<=': lapEnd.toISOString(),
-        });
-
-        trackPoints = buildTrackOutline(locationSamples);
-      }
+        },
+      );
+      trackPoints = buildTrackOutline(locationSamples);
     } catch {
-      trackPoints = buildFallbackTrack();
+      // ignore
     }
-  } else {
-    onProgress?.('Loading track geometry from session samples...');
-    try {
-      const locationSamples = await fetchOpenF1<ReplayLocationSample[]>('location', {
-        session_key: session.session_key,
-        driver_number: sourceDriverNumber,
-      });
+  }
 
-      if (locationSamples.length > 0) {
-        trackPoints = buildTrackOutline(locationSamples);
-      }
-    } catch {
-      trackPoints = buildFallbackTrack();
-    }
+  // Ultimate fallback to wobbly circle if all else fails
+  if (trackPoints.length < 40) {
+    trackPoints = buildFallbackTrack();
   }
 
   return {
@@ -312,7 +289,10 @@ export async function fetchReplayDataset(
       points: trackPoints,
       source_driver_number: sourceDriverNumber,
     },
-    total_laps: laps.reduce((maxLaps, lap) => Math.max(maxLaps, lap.lap_number), 0),
+    total_laps: laps.reduce(
+      (maxLaps, lap) => Math.max(maxLaps, lap.lap_number),
+      0,
+    ),
     start_time: session.date_start,
     end_time: buildReplayEndTime(session, laps, positions),
   };
