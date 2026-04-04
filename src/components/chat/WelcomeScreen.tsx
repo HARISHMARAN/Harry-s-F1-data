@@ -10,7 +10,12 @@ interface WelcomeScreenProps {
 }
 
 export default function WelcomeScreen({ onSuggestion }: WelcomeScreenProps) {
-  const chatMode = (import.meta.env.VITE_CHAT_MODE ?? 'offline').toLowerCase();
+  const apiBase =
+    import.meta.env.VITE_FORMULA_CHAT_API_URL ??
+    import.meta.env.VITE_CHAT_API_BASE ??
+    '';
+  const rawChatMode = (import.meta.env.VITE_CHAT_MODE ?? '').toLowerCase();
+  const chatMode = rawChatMode || (apiBase ? 'online' : 'offline');
   const isOffline = chatMode !== 'online';
 
   return (

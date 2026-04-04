@@ -12,7 +12,12 @@ export default function ChatView() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [apiStatus, setApiStatus] = useState<'checking' | 'ok' | 'degraded' | 'down'>('checking');
   const [toast, setToast] = useState<string | null>(null);
-  const chatMode = (import.meta.env.VITE_CHAT_MODE ?? 'offline').toLowerCase();
+  const apiBase =
+    import.meta.env.VITE_FORMULA_CHAT_API_URL ??
+    import.meta.env.VITE_CHAT_API_BASE ??
+    '';
+  const rawChatMode = (import.meta.env.VITE_CHAT_MODE ?? '').toLowerCase();
+  const chatMode = rawChatMode || (apiBase ? 'online' : 'offline');
   const isOffline = chatMode !== 'online';
 
   useEffect(() => {
@@ -39,7 +44,7 @@ export default function ChatView() {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 4000);
 
-        const res = await fetch('/health', { signal: controller.signal });
+        const res = await fetch(`${apiBase}/health`, { signal: controller.signal });
         clearTimeout(timeout);
 
         if (!res.ok) {
