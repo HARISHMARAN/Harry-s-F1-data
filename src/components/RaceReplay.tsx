@@ -430,6 +430,11 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
           return;
         }
 
+        if (replaySessions.length === 0 && selectedYear === currentYear) {
+          setSelectedYear(currentYear - 1);
+          return;
+        }
+
         setSessions(replaySessions);
         if (replaySessions.length > 0) {
           setSelectedSessionKey(pickDefaultSession(replaySessions)?.session_key ?? null);

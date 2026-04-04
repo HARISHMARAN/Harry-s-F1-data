@@ -1,8 +1,12 @@
 import { useCallback, useRef, useState } from 'react';
 import type { Message, Role, StreamChunk } from '../types/chat';
 
-const API_BASE = import.meta.env.VITE_CHAT_API_BASE ?? '';
-const CHAT_MODE = (import.meta.env.VITE_CHAT_MODE ?? 'offline').toLowerCase();
+const API_BASE =
+  import.meta.env.VITE_FORMULA_CHAT_API_URL ??
+  import.meta.env.VITE_CHAT_API_BASE ??
+  '';
+const RAW_CHAT_MODE = (import.meta.env.VITE_CHAT_MODE ?? '').toLowerCase();
+const CHAT_MODE = RAW_CHAT_MODE || (API_BASE ? 'online' : 'offline');
 
 function generateId(): string {
   return Math.random().toString(36).slice(2, 11);
