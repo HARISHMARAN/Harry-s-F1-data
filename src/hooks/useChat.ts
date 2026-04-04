@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import type { Message } from '../types/chat';
 import { getChatbotResponse } from '../services/chatLogic';
+import { getOnlineChatbotResponse } from '../services/chatApi';
 
 function generateId(): string {
   return Math.random().toString(36).slice(2, 11);
@@ -31,8 +32,11 @@ export function useChat() {
     const assistantId = generateId();
 
     try {
-      setActiveToolCall('f1_knowledge');
-      const fullResponse = await getChatbotResponse(trimmed);
+      const onlineEnabled = Boolean(import.meta.env.VITE_FORMULA_CHAT_API_URL);
+      setActiveToolCall(onlineEnabled ? 'online_chat' : 'f1_knowledge');
+      const fullResponse = onlineEnabled
+        ? await getOnlineChatbotResponse(trimmed).catch(() => getChatbotResponse(trimmed))
+        : await getChatbotResponse(trimmed);
       setActiveToolCall(null);
       
       setMessages((prev) => [

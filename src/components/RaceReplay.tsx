@@ -296,6 +296,11 @@ export default function RaceReplay() {
           return;
         }
 
+        if (replaySessions.length === 0 && selectedYear === currentYear) {
+          setSelectedYear(currentYear - 1);
+          return;
+        }
+
         setSessions(replaySessions);
         setSelectedSessionKey(pickDefaultSession(replaySessions)?.session_key ?? null);
       } catch (error: unknown) {

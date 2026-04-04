@@ -84,7 +84,9 @@ function pickReplayWinner(
   positions: ReplayPositionSample[],
   drivers: ReplayDriver[],
 ) {
-  if (positions.length === 0) return 1;
+  if (positions.length === 0) {
+    return drivers[0]?.driver_number ?? 1;
+  }
 
   const lastPositions = new Map<number, number>();
   positions.forEach((p) => lastPositions.set(p.driver_number, p.position));
@@ -96,6 +98,28 @@ function pickReplayWinner(
     if (pos < bestPos) {
       bestPos = pos;
       winnerNumber = num;
+    }
+  });
+
+  return winnerNumber;
+}
+
+function pickReplayWinnerFromLaps(laps: ReplayLap[], drivers: ReplayDriver[]) {
+  if (laps.length === 0) return drivers[0]?.driver_number ?? 1;
+
+  const maxLapByDriver = new Map<number, number>();
+  laps.forEach((lap) => {
+    const currentMax = maxLapByDriver.get(lap.driver_number) ?? 0;
+    maxLapByDriver.set(lap.driver_number, Math.max(currentMax, lap.lap_number));
+  });
+
+  let winnerNumber = drivers[0]?.driver_number ?? 1;
+  let bestLap = -1;
+
+  maxLapByDriver.forEach((lapCount, driverNumber) => {
+    if (lapCount > bestLap) {
+      bestLap = lapCount;
+      winnerNumber = driverNumber;
     }
   });
 
@@ -162,7 +186,15 @@ export async function fetchReplaySessions(
     session_name: 'Race',
   });
 
-  return [...sessions].sort(
+  const now = Date.now();
+  const startedSessions = sessions.filter((session) => {
+    const startMs = Date.parse(session.date_start);
+    return Number.isFinite(startMs) && startMs <= now;
+  });
+
+  const effectiveSessions = startedSessions.length > 0 ? startedSessions : sessions;
+
+  return [...effectiveSessions].sort(
     (left, right) => Date.parse(right.date_start) - Date.parse(left.date_start),
   );
 }
@@ -201,6 +233,72 @@ function findLapWindow(laps: ReplayLap[], driverNumber: number) {
   return null;
 }
 
+function mergeDriverRosters(
+  primary: ReplayDriver[],
+  fallback: ReplayDriver[],
+) {
+  const merged = new Map<number, ReplayDriver>();
+
+  const upsert = (driver: ReplayDriver) => {
+    const existing = merged.get(driver.driver_number);
+    if (!existing) {
+      merged.set(driver.driver_number, driver);
+      return;
+    }
+
+    // Prefer the record with more complete metadata.
+    merged.set(driver.driver_number, {
+      ...existing,
+      ...driver,
+      team_name: driver.team_name || existing.team_name,
+      team_colour: driver.team_colour || existing.team_colour,
+      name_acronym: driver.name_acronym || existing.name_acronym,
+      full_name: driver.full_name || existing.full_name,
+      broadcast_name: driver.broadcast_name || existing.broadcast_name,
+      headshot_url: driver.headshot_url || existing.headshot_url,
+      country_code: driver.country_code || existing.country_code,
+    });
+  };
+
+  primary.forEach(upsert);
+  fallback.forEach(upsert);
+
+  return Array.from(merged.values());
+}
+
+function ensureDriverRoster(
+  drivers: ReplayDriver[],
+  laps: ReplayLap[],
+  positions: ReplayPositionSample[],
+) {
+  const knownDrivers = new Set(drivers.map((driver) => driver.driver_number));
+  const inferredNumbers = new Set<number>();
+
+  laps.forEach((lap) => inferredNumbers.add(lap.driver_number));
+  positions.forEach((position) => inferredNumbers.add(position.driver_number));
+
+  const placeholders: ReplayDriver[] = [];
+
+  inferredNumbers.forEach((driverNumber) => {
+    if (knownDrivers.has(driverNumber)) return;
+    placeholders.push({
+      session_key: drivers[0]?.session_key ?? 0,
+      driver_number: driverNumber,
+      broadcast_name: `Driver ${driverNumber}`,
+      full_name: `Driver ${driverNumber}`,
+      name_acronym: String(driverNumber),
+      team_name: 'Unknown',
+      team_colour: 'AAAAAA',
+      first_name: 'Driver',
+      last_name: String(driverNumber),
+      headshot_url: '',
+      country_code: '',
+    });
+  });
+
+  return drivers.concat(placeholders);
+}
+
 export async function fetchReplayDataset(
   session: ReplaySessionSummary,
   onProgress?: (message: string) => void,
@@ -218,11 +316,29 @@ export async function fetchReplayDataset(
     }).catch(() => []),
   ]);
 
-  if (drivers.length === 0 || positions.length === 0) {
+  if (drivers.length === 0 || (laps.length === 0 && positions.length === 0)) {
     throw new Error('No timing data is available yet for this race replay.');
   }
 
-  const sourceDriverNumber = pickReplayWinner(positions, drivers);
+  let mergedDrivers = drivers;
+
+  if (drivers.length < 18 && session.meeting_key) {
+    try {
+      const meetingDrivers = await fetchOpenF1<ReplayDriver[]>('drivers', {
+        meeting_key: session.meeting_key,
+      });
+      mergedDrivers = mergeDriverRosters(mergedDrivers, meetingDrivers);
+    } catch {
+      // ignore meeting-level fallback errors
+    }
+  }
+
+  mergedDrivers = ensureDriverRoster(mergedDrivers, laps, positions);
+
+  const sourceDriverNumber =
+    positions.length > 0
+      ? pickReplayWinner(positions, mergedDrivers)
+      : pickReplayWinnerFromLaps(laps, mergedDrivers);
   const referenceLap = pickReferenceLap(laps, sourceDriverNumber);
   
   let trackPoints: ReplayTrackPoint[] = [];
@@ -281,7 +397,7 @@ export async function fetchReplayDataset(
 
   return {
     session,
-    drivers,
+    drivers: mergedDrivers,
     laps,
     positions,
     race_control: raceControl,
