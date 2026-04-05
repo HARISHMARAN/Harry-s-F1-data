@@ -11,7 +11,7 @@ asyncpg==0.30.0
 playwright==1.50.0
 
 # PDF extraction
-pdfplumber==0.11.4
+pdfplumber==0.11.9
 
 # Embeddings + tokenisation
 openai
