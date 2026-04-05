@@ -15,7 +15,7 @@ pdfplumber==0.11.9
 
 # Embeddings + tokenisation
 openai
-tiktoken==0.8.0
+tiktoken==0.12.0
 
 # Environment
 python-dotenv==1.2.2
