@@ -14,7 +14,7 @@
   "dependencies": {
     "cors": "^2.8.5",
     "lucide-react": "^1.7.0",
-    "openai": "^4.80.1",
+    "openai": "^6.33.0",
     "pg": "^8.13.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
