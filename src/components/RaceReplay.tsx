@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   Flag,
@@ -242,7 +242,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
   const [zoom, setZoom] = useState<number>(1);
   const [demoMode, setDemoMode] = useState<boolean>(false);
 
-  const demoSessions: ReplaySessionSummary[] = [
+  const demoSessions = useMemo<ReplaySessionSummary[]>(() => [
     {
       session_key: 1,
       session_type: 'R',
@@ -285,7 +285,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
       year: currentYear,
       round: 3,
     },
-  ];
+  ], [currentYear]);
 
   function buildDemoDataset(session: ReplaySessionSummary): ReplayDataset {
     const baseTime = new Date(session.date_start).getTime() || Date.now();
@@ -443,7 +443,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
         } else {
           setSelectedSessionKey(null);
         }
-      } catch (error: unknown) {
+      } catch {
         if (!ignore) {
           setDemoMode(true);
           setErrorMsg(null);
@@ -462,7 +462,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
     return () => {
       ignore = true;
     };
-  }, [selectedYear]);
+  }, [selectedYear, currentYear, demoSessions]);
 
   useEffect(() => {
     const selectedSession = sessions.find((session) => session.session_key === selectedSessionKey);
@@ -497,7 +497,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
         setIsPlaying(false);
         setDemoMode(false);
         setSelectedDriverNumber(replayDataset.track.source_driver_number);
-      } catch (error: unknown) {
+      } catch {
         if (!ignore) {
           setDemoMode(true);
           setErrorMsg(null);

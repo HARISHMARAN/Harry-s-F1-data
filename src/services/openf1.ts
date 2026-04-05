@@ -236,6 +236,6 @@ export async function fetchLiveDashboardData(): Promise<DashboardData> {
 
   } catch (err: unknown) {
     console.error("Local InfluxDB backend error:", err);
-    throw new Error("Unable to connect to the fastf1 datastream. Please ensure Docker is running.");
+    throw new Error("Unable to connect to the fastf1 datastream. Please ensure Docker is running.", { cause: err });
   }
 }

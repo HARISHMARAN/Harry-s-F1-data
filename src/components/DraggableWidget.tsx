@@ -15,7 +15,7 @@ export default function DraggableWidget({ id, title, defaultX, defaultY, childre
     if (saved) {
       try {
         return JSON.parse(saved);
-      } catch (e) {
+      } catch {
         return { x: defaultX, y: defaultY };
       }
     }

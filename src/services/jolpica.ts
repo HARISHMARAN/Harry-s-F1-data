@@ -174,6 +174,6 @@ export async function fetchHistoricalData(year?: string, round?: string): Promis
     };
   } catch (err: unknown) {
     console.error('Jolpica api failed', err);
-    throw new Error('Unable to load latest completed race from Jolpica.');
+    throw new Error('Unable to load latest completed race from Jolpica.', { cause: err });
   }
 }

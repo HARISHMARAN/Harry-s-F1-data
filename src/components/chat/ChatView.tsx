@@ -8,10 +8,9 @@ import WelcomeScreen from './WelcomeScreen';
 import './chat.css';
 
 export default function ChatView() {
-  const { messages, isLoading, activeToolCall, lastError, sendMessage, clearMessages } = useChat();
+  const { messages, isLoading, activeToolCall, lastError, sendMessage, clearMessages, clearError } = useChat();
   const bottomRef = useRef<HTMLDivElement>(null);
   const [apiStatus, setApiStatus] = useState<'checking' | 'ok' | 'degraded' | 'down'>('checking');
-  const [toast, setToast] = useState<string | null>(null);
   const apiBase =
     import.meta.env.VITE_FORMULA_CHAT_API_URL ??
     import.meta.env.VITE_CHAT_API_BASE ??
@@ -26,10 +25,9 @@ export default function ChatView() {
 
   useEffect(() => {
     if (!lastError) return;
-    setToast(lastError);
-    const timer = setTimeout(() => setToast(null), 5000);
+    const timer = setTimeout(() => clearError(), 5000);
     return () => clearTimeout(timer);
-  }, [lastError]);
+  }, [lastError, clearError]);
 
   useEffect(() => {
     let isMounted = true;
@@ -75,7 +73,7 @@ export default function ChatView() {
       isMounted = false;
       if (timer) clearInterval(timer);
     };
-  }, [isOffline]);
+  }, [isOffline, apiBase]);
 
   return (
     <section className="chat-shell glass-panel">
@@ -86,10 +84,10 @@ export default function ChatView() {
       />
 
       <main className="chat-body">
-        {toast && (
+        {lastError && (
           <div className="chat-toast">
             <span className="chat-toast-dot" />
-            {toast}
+            {lastError}
           </div>
         )}
         {messages.length === 0 ? (

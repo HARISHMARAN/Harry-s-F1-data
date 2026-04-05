@@ -296,5 +296,9 @@ export function useChat() {
     setLastError(null);
   }, []);
 
-  return { messages, isLoading, activeToolCall, lastError, sendMessage, clearMessages };
+  const clearError = useCallback(() => {
+    setLastError(null);
+  }, []);
+
+  return { messages, isLoading, activeToolCall, lastError, sendMessage, clearMessages, clearError };
 }
