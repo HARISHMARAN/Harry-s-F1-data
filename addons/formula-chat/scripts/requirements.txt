@@ -18,4 +18,4 @@ openai
 tiktoken==0.8.0
 
 # Environment
-python-dotenv==1.0.1
+python-dotenv==1.2.2
