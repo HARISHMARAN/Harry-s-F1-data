@@ -22,7 +22,7 @@
     "fs": "^0.0.1-security",
     "langchain": "^0.3.37",
     "openai": "^4.76.0",
-    "playwright": "^1.49.0",
+    "playwright": "^1.55.1",
     "ts-node": "^10.9.2"
   }
 }
