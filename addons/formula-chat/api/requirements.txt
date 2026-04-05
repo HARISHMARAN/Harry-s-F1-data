@@ -2,7 +2,7 @@
 fastapi==0.115.6
 uvicorn[standard]==0.32.1
 pydantic==2.10.3
-pydantic-settings==2.7.0
+pydantic-settings==2.13.1
 
 # OpenAI Agents SDK
 openai-agents==0.13.4
