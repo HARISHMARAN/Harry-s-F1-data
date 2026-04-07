@@ -25,7 +25,7 @@ export default function HomePage() {
   return (
     <section className="grid gap-6 md:grid-cols-2">
       {modules.map((module) => (
-        <a key={module.title} href={module.href} className="surface-card p-6 transition hover:-translate-y-1">
+        <a key={module.title} href={module.href} className="glass-panel p-6 transition hover:-translate-y-1">
           <p className="section-title">Module</p>
           <h2 className="mt-3 text-xl font-semibold text-white">{module.title}</h2>
           <p className="mt-2 text-sm text-slate-300">{module.description}</p>

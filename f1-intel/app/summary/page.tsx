@@ -36,7 +36,7 @@ export default function SummaryPage() {
             <input
               value={raceId}
               onChange={(event) => setRaceId(event.target.value)}
-              className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white"
+              className="race-input mt-2"
             />
           </div>
           <div className="flex items-end">

@@ -1,8 +1,10 @@
 export default function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="surface-card p-6">
-      <p className="section-title">{title}</p>
-      <div className="mt-4">{children}</div>
+    <section className="glass-panel">
+      <div className="panel-header">
+        <p className="panel-title">{title}</p>
+      </div>
+      <div className="p-6">{children}</div>
     </section>
   );
 }

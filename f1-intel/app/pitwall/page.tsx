@@ -32,7 +32,7 @@ export default function PitwallPage() {
             <input
               value={sessionId}
               onChange={(event) => setSessionId(event.target.value)}
-              className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white"
+              className="race-input mt-2"
               placeholder="latest or session id"
             />
           </div>
@@ -41,7 +41,7 @@ export default function PitwallPage() {
             <input
               value={driver}
               onChange={(event) => setDriver(event.target.value)}
-              className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white"
+              className="race-input mt-2"
               placeholder="VER"
             />
           </div>

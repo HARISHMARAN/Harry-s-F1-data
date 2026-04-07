@@ -33,7 +33,7 @@ export default function PredictorPage() {
             <input
               value={raceId}
               onChange={(event) => setRaceId(event.target.value)}
-              className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white"
+              className="race-input mt-2"
             />
           </div>
           <div className="flex items-end">
@@ -48,7 +48,7 @@ export default function PredictorPage() {
         {!predictions?.length && <p className="text-sm text-slate-300">Run a prediction to see results.</p>}
         <div className="grid gap-3">
           {predictions?.map((row) => (
-            <div key={row.driver} className="flex items-center justify-between rounded-xl border border-white/10 bg-slate-900 px-4 py-3">
+            <div key={row.driver} className="flex items-center justify-between rounded-xl border border-white/10 bg-[rgba(255,255,255,0.03)] px-4 py-3">
               <span className="text-sm font-semibold">P{row.position} — {row.driver}</span>
               <span className="text-xs text-slate-300">Confidence {Math.round(row.confidence * 100)}%</span>
             </div>
