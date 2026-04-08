@@ -103,13 +103,37 @@ function pointAtFraction(points: ReplayTrackPoint[], fraction: number) {
     return { x: TRACK_WIDTH / 2, y: TRACK_HEIGHT / 2 };
   }
 
-  const boundedFraction = clamp(fraction, 0, 0.9999);
-  const scaledIndex = boundedFraction * (points.length - 1);
-  const leftIndex = Math.floor(scaledIndex);
+  const boundedFraction = clamp(fraction, 0, 1);
+  const totalDistance = points[points.length - 1].distance ?? 0;
+  const targetDistance = boundedFraction * totalDistance;
+
+  // Binary search for the segment containing targetDistance
+  let low = 0;
+  let high = points.length - 1;
+  let leftIndex = 0;
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    if ((points[mid].distance ?? 0) <= targetDistance) {
+      leftIndex = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+
   const rightIndex = Math.min(leftIndex + 1, points.length - 1);
-  const interpolation = scaledIndex - leftIndex;
+  
+  if (leftIndex === rightIndex) {
+    return { x: points[leftIndex].x, y: points[leftIndex].y };
+  }
+
   const leftPoint = points[leftIndex];
   const rightPoint = points[rightIndex];
+  const segmentDist = (rightPoint.distance ?? 0) - (leftPoint.distance ?? 0);
+  const interpolation = segmentDist > 0 
+    ? (targetDistance - (leftPoint.distance ?? 0)) / segmentDist 
+    : 0;
 
   return {
     x: leftPoint.x + (rightPoint.x - leftPoint.x) * interpolation,
@@ -138,6 +162,7 @@ function normalizeTrack(points: ReplayTrackPoint[]) {
   return points.map((point) => ({
     x: TRACK_PADDING + (point.x - minX) * scale,
     y: TRACK_HEIGHT - TRACK_PADDING - (point.y - minY) * scale,
+    distance: point.distance,
   }));
 }
 
@@ -165,6 +190,10 @@ function getLapState(laps: ReplayLap[], replayTime: number) {
   );
 
   if (currentLapIndex === -1) {
+    const firstLapStart = Date.parse(validLaps[0].date_start ?? '');
+    if (replayTime < firstLapStart) {
+      return { lapNumber: 1, lapFraction: 0, globalProgress: 0 };
+    }
     return { lapNumber: 0, lapFraction: 0, globalProgress: 0 };
   }
 
@@ -175,7 +204,8 @@ function getLapState(laps: ReplayLap[], replayTime: number) {
     ? Date.parse(nextLap.date_start ?? '')
     : currentLap.lap_duration
       ? lapStart + currentLap.lap_duration * 1000
-      : lapStart + 90_000;
+      : lapStart + 95_000;
+  
   const lapFraction = clamp(
     (replayTime - lapStart) / Math.max(lapEnd - lapStart, 1000),
     0,

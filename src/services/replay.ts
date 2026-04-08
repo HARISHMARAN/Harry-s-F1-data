@@ -41,6 +41,7 @@ function buildFallbackTrack(): ReplayTrackPoint[] {
     return {
       x: Math.cos(angle) * radiusX,
       y: Math.sin(angle) * radiusY,
+      distance: index, // Dummy distance
     };
   });
 }
@@ -48,13 +49,14 @@ function buildFallbackTrack(): ReplayTrackPoint[] {
 function buildTrackOutline(samples: ReplayLocationSample[]): ReplayTrackPoint[] {
   const uniquePoints: ReplayTrackPoint[] = [];
   let previousPoint: ReplayTrackPoint | null = null;
+  let totalDistance = 0;
 
   for (const sample of samples) {
     if (sample.x === 0 && sample.y === 0) {
       continue;
     }
 
-    const currentPoint = { x: sample.x, y: sample.y };
+    const currentPoint = { x: sample.x, y: sample.y, distance: 0 };
 
     if (!previousPoint) {
       uniquePoints.push(currentPoint);
@@ -64,17 +66,28 @@ function buildTrackOutline(samples: ReplayLocationSample[]): ReplayTrackPoint[] 
 
     const deltaX = currentPoint.x - previousPoint.x;
     const deltaY = currentPoint.y - previousPoint.y;
+    const dist = Math.hypot(deltaX, deltaY);
 
-    // Use a very low threshold to ensure we get a shape even with small coordinate ranges
-    if (Math.hypot(deltaX, deltaY) >= 2) {
+    // Filter out points that are too close together
+    if (dist >= 10) {
+      totalDistance += dist;
+      currentPoint.distance = totalDistance;
       uniquePoints.push(currentPoint);
       previousPoint = currentPoint;
     }
   }
 
-  // If we couldn't build a real track map from telemetry, return empty to trigger next driver attempt
   if (uniquePoints.length < 40) {
     return [];
+  }
+
+  // Ensure it's a closed loop for the SVG path
+  const first = uniquePoints[0];
+  const last = uniquePoints[uniquePoints.length - 1];
+  const closingDist = Math.hypot(last.x - first.x, last.y - first.y);
+  
+  if (closingDist > 20) {
+    uniquePoints.push({ ...first, distance: totalDistance + closingDist });
   }
 
   return uniquePoints;
@@ -168,7 +181,6 @@ export async function fetchReplaySessions(
 }
 
 function sanitizeDate(dateStr: string): string {
-  // OpenF1 API is picky about date format - prefers YYYY-MM-DDTHH:MM:SS
   return dateStr.split('.')[0].split('+')[0].replace('Z', '');
 }
 
@@ -257,7 +269,6 @@ export async function fetchReplayDataset(
     }
   }
 
-  // Final fallback: try whole session samples for the winner
   if (trackPoints.length < 40) {
     onProgress?.('Attempting session-wide track recovery...');
     try {
@@ -274,7 +285,6 @@ export async function fetchReplayDataset(
     }
   }
 
-  // Ultimate fallback to wobbly circle if all else fails
   if (trackPoints.length < 40) {
     trackPoints = buildFallbackTrack();
   }
