@@ -2,92 +2,298 @@ import type {
   ReplayDataset,
   ReplayDriver,
   ReplayLap,
+  ReplayLocationSample,
   ReplayPositionSample,
+  ReplayRaceControlMessage,
   ReplaySessionSummary,
+  ReplayTrackPoint,
 } from '../types/f1';
 
-/**
- * Harry's Pitwall - Replay Service (v2)
- *
- * Instead of fetching raw telemetry from OpenF1 directly in the browser,
- * this service calls our local Python backend which uses FastF1 for
- * high-performance data processing and local caching.
- */
+const OPEN_F1_BASE_URL = 'https://api.openf1.org/v1';
+const TRACK_FALLBACK_POINTS = 100;
 
-function ensureDriverRoster(
+async function fetchOpenF1<T>(
+  endpoint: string,
+  params: Record<string, string | number>,
+): Promise<T> {
+  const url = new URL(`${OPEN_F1_BASE_URL}/${endpoint}`);
+  Object.entries(params).forEach(([key, value]) => {
+    url.searchParams.append(key, String(value));
+  });
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    if (response.status === 404) {
+      return [] as unknown as T;
+    }
+    throw new Error(`Failed to fetch from OpenF1: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+function buildFallbackTrack(): ReplayTrackPoint[] {
+  return Array.from({ length: TRACK_FALLBACK_POINTS }, (_, index) => {
+    const angle = (index / TRACK_FALLBACK_POINTS) * Math.PI * 2;
+    // Circular wobbly track as a last resort
+    const radiusX = 430 + Math.sin(angle * 3) * 40;
+    const radiusY = 250 + Math.cos(angle * 2) * 25;
+
+    return {
+      x: Math.cos(angle) * radiusX,
+      y: Math.sin(angle) * radiusY,
+    };
+  });
+}
+
+function buildTrackOutline(samples: ReplayLocationSample[]): ReplayTrackPoint[] {
+  const uniquePoints: ReplayTrackPoint[] = [];
+  let previousPoint: ReplayTrackPoint | null = null;
+
+  for (const sample of samples) {
+    if (sample.x === 0 && sample.y === 0) {
+      continue;
+    }
+
+    const currentPoint = { x: sample.x, y: sample.y };
+
+    if (!previousPoint) {
+      uniquePoints.push(currentPoint);
+      previousPoint = currentPoint;
+      continue;
+    }
+
+    const deltaX = currentPoint.x - previousPoint.x;
+    const deltaY = currentPoint.y - previousPoint.y;
+
+    // Use a very low threshold to ensure we get a shape even with small coordinate ranges
+    if (Math.hypot(deltaX, deltaY) >= 2) {
+      uniquePoints.push(currentPoint);
+      previousPoint = currentPoint;
+    }
+  }
+
+  // If we couldn't build a real track map from telemetry, return empty to trigger next driver attempt
+  if (uniquePoints.length < 40) {
+    return [];
+  }
+
+  return uniquePoints;
+}
+
+function pickReplayWinner(
+  positions: ReplayPositionSample[],
   drivers: ReplayDriver[],
+) {
+  if (positions.length === 0) return 1;
+
+  const lastPositions = new Map<number, number>();
+  positions.forEach((p) => lastPositions.set(p.driver_number, p.position));
+
+  let winnerNumber = 1;
+  let bestPos = 999;
+
+  lastPositions.forEach((pos, num) => {
+    if (pos < bestPos) {
+      bestPos = pos;
+      winnerNumber = num;
+    }
+  });
+
+  return winnerNumber;
+}
+
+function pickReferenceLap(laps: ReplayLap[], driverNumber: number) {
+  return (
+    laps.find(
+      (lap) =>
+        lap.driver_number === driverNumber &&
+        lap.lap_duration !== null &&
+        lap.lap_duration > 0 &&
+        !lap.is_pit_out_lap,
+    ) ||
+    laps.find(
+      (lap) =>
+        lap.date_start && lap.lap_duration !== null && lap.lap_duration > 0,
+    )
+  );
+}
+
+function buildReplayEndTime(
+  session: ReplaySessionSummary,
   laps: ReplayLap[],
   positions: ReplayPositionSample[],
 ) {
-  const knownDrivers = new Set(drivers.map((driver) => driver.driver_number));
-  const inferredNumbers = new Set<number>();
+  const candidates: number[] = [];
+  const sessionEndMs = Date.parse(session.date_end ?? '');
 
-  laps.forEach((lap) => inferredNumbers.add(lap.driver_number));
-  positions.forEach((position) => inferredNumbers.add(position.driver_number));
+  if (Number.isFinite(sessionEndMs)) {
+    candidates.push(sessionEndMs);
+  }
 
-  const placeholders: ReplayDriver[] = [];
+  const finalLap = laps
+    .filter((lap) => lap.lap_duration !== null && lap.date_start)
+    .at(-1);
 
-  inferredNumbers.forEach((driverNumber) => {
-    if (knownDrivers.has(driverNumber)) return;
-    placeholders.push({
-      session_key: drivers[0]?.session_key ?? 0,
-      driver_number: driverNumber,
-      broadcast_name: `Driver ${driverNumber}`,
-      full_name: `Driver ${driverNumber}`,
-      name_acronym: String(driverNumber),
-      team_name: 'Unknown',
-      team_colour: 'AAAAAA',
-      first_name: 'Driver',
-      last_name: String(driverNumber),
-      headshot_url: '',
-      country_code: '',
-    });
-  });
+  if (finalLap?.lap_duration && finalLap.date_start) {
+    const finalLapStart = Date.parse(finalLap.date_start);
+    if (Number.isFinite(finalLapStart)) {
+      candidates.push(finalLapStart + finalLap.lap_duration * 1000);
+    }
+  }
 
-  return drivers.concat(placeholders);
+  const lastPositionSample = positions.at(-1);
+
+  if (lastPositionSample) {
+    candidates.push(Date.parse(lastPositionSample.date));
+  }
+
+  if (candidates.length === 0) {
+    candidates.push(Date.parse(session.date_start));
+  }
+
+  return new Date(Math.max(...candidates)).toISOString();
 }
 
-export async function fetchReplaySessions(year: number): Promise<ReplaySessionSummary[]> {
-  try {
-    const response = await fetch(`/api/sessions?year=${year}`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch replay sessions from local backend.');
+export async function fetchReplaySessions(
+  year: number,
+): Promise<ReplaySessionSummary[]> {
+  const sessions = await fetchOpenF1<ReplaySessionSummary[]>('sessions', {
+    year,
+    session_name: 'Race',
+  });
+
+  return [...sessions].sort(
+    (left, right) => Date.parse(right.date_start) - Date.parse(left.date_start),
+  );
+}
+
+function sanitizeDate(dateStr: string): string {
+  // OpenF1 API is picky about date format - prefers YYYY-MM-DDTHH:MM:SS
+  return dateStr.split('.')[0].split('+')[0].replace('Z', '');
+}
+
+function findLapWindow(laps: ReplayLap[], driverNumber: number) {
+  const driverLaps = laps
+    .filter((lap) => lap.driver_number === driverNumber && lap.date_start)
+    .sort(
+      (left, right) =>
+        Date.parse(left.date_start ?? '') - Date.parse(right.date_start ?? ''),
+    );
+
+  // Try to find a nice clean lap (not lap 1, not pit lap)
+  for (let i = 1; i < driverLaps.length - 1; i += 1) {
+    const lap = driverLaps[i];
+    const next = driverLaps[i + 1];
+    if (!lap.is_pit_out_lap && lap.lap_duration && lap.date_start && next.date_start) {
+      return { start: lap.date_start, end: next.date_start };
     }
-    return await response.json();
-  } catch (error) {
-    console.error('Replay session fetch error:', error);
-    throw error;
   }
+
+  // Fallback to any lap window
+  for (let i = 0; i < driverLaps.length - 1; i += 1) {
+    const start = driverLaps[i].date_start;
+    const next = driverLaps[i + 1].date_start;
+    if (start && next) {
+      return { start, end: next };
+    }
+  }
+
+  return null;
 }
 
 export async function fetchReplayDataset(
   session: ReplaySessionSummary,
   onProgress?: (message: string) => void,
 ): Promise<ReplayDataset> {
-  onProgress?.('Fetching optimized race telemetry from local Python backend...');
+  onProgress?.('Loading driver roster, race order, and lap timing...');
 
-  try {
-    const response = await fetch(`/api/replay/${session.year}/${session.round}`);
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-      throw new Error(errorData.detail || 'Failed to fetch replay dataset.');
-    }
+  const [drivers, laps, positions, raceControl] = await Promise.all([
+    fetchOpenF1<ReplayDriver[]>('drivers', { session_key: session.session_key }),
+    fetchOpenF1<ReplayLap[]>('laps', { session_key: session.session_key }),
+    fetchOpenF1<ReplayPositionSample[]>('position', {
+      session_key: session.session_key,
+    }),
+    fetchOpenF1<ReplayRaceControlMessage[]>('race_control', {
+      session_key: session.session_key,
+    }).catch(() => []),
+  ]);
 
-    onProgress?.('Processing dashboard replay stream...');
-    const data = await response.json();
-
-    const laps = data.laps ?? [];
-    const positions = data.positions ?? [];
-    const drivers = ensureDriverRoster(data.drivers ?? [], laps, positions);
-
-    return {
-      ...data,
-      drivers,
-      positions,
-      laps,
-    };
-  } catch (error) {
-    console.error('Replay dataset fetch error:', error);
-    throw error;
+  if (drivers.length === 0 || (laps.length === 0 && positions.length === 0)) {
+    throw new Error('No timing data is available yet for this race replay.');
   }
+
+  const sourceDriverNumber = pickReplayWinner(positions, drivers);
+  const referenceLap = pickReferenceLap(laps, sourceDriverNumber);
+  
+  let trackPoints: ReplayTrackPoint[] = [];
+
+  // Try to get track from multiple potential drivers if needed
+  const candidateDrivers = [
+    sourceDriverNumber,
+    ...drivers.map(d => d.driver_number).filter(n => n !== sourceDriverNumber).slice(0, 3)
+  ];
+
+  for (const driverNum of candidateDrivers) {
+    if (trackPoints.length >= 40) break;
+
+    const lapWindow = findLapWindow(laps, driverNum);
+    if (!lapWindow) continue;
+
+    onProgress?.(`Tracing track geometry using driver ${driverNum}...`);
+    try {
+      const locationSamples = await fetchOpenF1<ReplayLocationSample[]>(
+        'location',
+        {
+          session_key: session.session_key,
+          driver_number: driverNum,
+          'date>=': sanitizeDate(lapWindow.start),
+          'date<=': sanitizeDate(lapWindow.end),
+        },
+      );
+
+      trackPoints = buildTrackOutline(locationSamples);
+    } catch {
+      continue;
+    }
+  }
+
+  // Final fallback: try whole session samples for the winner
+  if (trackPoints.length < 40) {
+    onProgress?.('Attempting session-wide track recovery...');
+    try {
+      const locationSamples = await fetchOpenF1<ReplayLocationSample[]>(
+        'location',
+        {
+          session_key: session.session_key,
+          driver_number: sourceDriverNumber,
+        },
+      );
+      trackPoints = buildTrackOutline(locationSamples);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Ultimate fallback to wobbly circle if all else fails
+  if (trackPoints.length < 40) {
+    trackPoints = buildFallbackTrack();
+  }
+
+  return {
+    session,
+    drivers,
+    laps,
+    positions,
+    race_control: raceControl,
+    track: {
+      points: trackPoints,
+      source_driver_number: sourceDriverNumber,
+    },
+    total_laps: laps.reduce(
+      (maxLaps, lap) => Math.max(maxLaps, lap.lap_number),
+      0,
+    ),
+    start_time: session.date_start,
+    end_time: buildReplayEndTime(session, laps, positions),
+  };
 }
