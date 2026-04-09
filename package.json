@@ -6,13 +6,15 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "node server/index.js",
-    "dev:all": "concurrently -k -n \"WEB,API\" -c \"cyan,magenta\" \"npm run dev\" \"npm run dev:server\"",
+    "dev:python": "cd addons/f1-race-replay && .venv/bin/python server.py",
+    "dev:all": "concurrently -k -n \"WEB,API,PY\" -c \"cyan,magenta,yellow\" \"npm run dev\" \"npm run dev:server\" \"npm run dev:python\"",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "express": "^5.2.1",
     "lucide-react": "^1.7.0",
     "openai": "^6.33.0",
     "pg": "^8.13.1",

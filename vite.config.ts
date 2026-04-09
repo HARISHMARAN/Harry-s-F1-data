@@ -11,6 +11,14 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/influx/, '')
       },
+      '/api/sessions': {
+        target: 'http://localhost:8001',
+        changeOrigin: true
+      },
+      '/api/replay': {
+        target: 'http://localhost:8001',
+        changeOrigin: true
+      },
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true
