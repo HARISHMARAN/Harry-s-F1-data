@@ -95,7 +95,6 @@ function buildTrackOutline(samples: ReplayLocationSample[]): ReplayTrackPoint[] 
 
 function pickReplayWinner(
   positions: ReplayPositionSample[],
-  drivers: ReplayDriver[],
 ) {
   if (positions.length === 0) return 1;
 
@@ -115,21 +114,7 @@ function pickReplayWinner(
   return winnerNumber;
 }
 
-function pickReferenceLap(laps: ReplayLap[], driverNumber: number) {
-  return (
-    laps.find(
-      (lap) =>
-        lap.driver_number === driverNumber &&
-        lap.lap_duration !== null &&
-        lap.lap_duration > 0 &&
-        !lap.is_pit_out_lap,
-    ) ||
-    laps.find(
-      (lap) =>
-        lap.date_start && lap.lap_duration !== null && lap.lap_duration > 0,
-    )
-  );
-}
+
 
 function buildReplayEndTime(
   session: ReplaySessionSummary,
@@ -234,8 +219,7 @@ export async function fetchReplayDataset(
     throw new Error('No timing data is available yet for this race replay.');
   }
 
-  const sourceDriverNumber = pickReplayWinner(positions, drivers);
-  const referenceLap = pickReferenceLap(laps, sourceDriverNumber);
+  const sourceDriverNumber = pickReplayWinner(positions);
   
   let trackPoints: ReplayTrackPoint[] = [];
 

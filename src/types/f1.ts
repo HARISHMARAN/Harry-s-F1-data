@@ -103,6 +103,7 @@ export interface ReplayLocationSample {
 export interface ReplayTrackPoint {
   x: number;
   y: number;
+  distance?: number;
 }
 
 export interface ReplayTrackOutline {
