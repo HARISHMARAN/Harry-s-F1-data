@@ -128,7 +128,8 @@ function buildReplayEndTime(
     candidates.push(sessionEndMs);
   }
 
-  const finalLap = laps
+  // laps is sorted chronologically at this point; pick the last valid one
+  const finalLap = [...laps]
     .filter((lap) => lap.lap_duration !== null && lap.date_start)
     .at(-1);
 
@@ -181,12 +182,12 @@ function findLapWindow(laps: ReplayLap[], driverNumber: number) {
   for (let i = 1; i < driverLaps.length - 1; i += 1) {
     const lap = driverLaps[i];
     const next = driverLaps[i + 1];
-    if (!lap.is_pit_out_lap && lap.lap_duration && lap.date_start && next.date_start) {
+    if (!lap.is_pit_out_lap && lap.date_start && next.date_start) {
       return { start: lap.date_start, end: next.date_start };
     }
   }
 
-  // Fallback to any lap window
+  // Fallback to any consecutive lap window
   for (let i = 0; i < driverLaps.length - 1; i += 1) {
     const start = driverLaps[i].date_start;
     const next = driverLaps[i + 1].date_start;
@@ -204,7 +205,7 @@ export async function fetchReplayDataset(
 ): Promise<ReplayDataset> {
   onProgress?.('Loading driver roster, race order, and lap timing...');
 
-  const [drivers, laps, positions, raceControl] = await Promise.all([
+  const [drivers, rawLaps, rawPositions, rawRaceControl] = await Promise.all([
     fetchOpenF1<ReplayDriver[]>('drivers', { session_key: session.session_key }),
     fetchOpenF1<ReplayLap[]>('laps', { session_key: session.session_key }),
     fetchOpenF1<ReplayPositionSample[]>('position', {
@@ -215,9 +216,22 @@ export async function fetchReplayDataset(
     }).catch(() => []),
   ]);
 
-  if (drivers.length === 0 || (laps.length === 0 && positions.length === 0)) {
+  if (drivers.length === 0 || (rawLaps.length === 0 && rawPositions.length === 0)) {
     throw new Error('No timing data is available yet for this race replay.');
   }
+
+  // Sort all time-series data chronologically — binary search requires sorted input.
+  // OpenF1 does not guarantee insertion order, so unsorted data causes wrong driver
+  // positions, broken replay duration, and stacked markers at position 0.
+  const laps = [...rawLaps].sort(
+    (a, b) => Date.parse(a.date_start ?? '0') - Date.parse(b.date_start ?? '0'),
+  );
+  const positions = [...rawPositions].sort(
+    (a, b) => Date.parse(a.date) - Date.parse(b.date),
+  );
+  const raceControl = [...rawRaceControl].sort(
+    (a, b) => Date.parse(a.date) - Date.parse(b.date),
+  );
 
   const sourceDriverNumber = pickReplayWinner(positions);
   
@@ -269,7 +283,9 @@ export async function fetchReplayDataset(
     }
   }
 
+  let usingFallbackTrack = false;
   if (trackPoints.length < 40) {
+    usingFallbackTrack = true;
     trackPoints = buildFallbackTrack();
   }
 
@@ -289,5 +305,6 @@ export async function fetchReplayDataset(
     ),
     start_time: session.date_start,
     end_time: buildReplayEndTime(session, laps, positions),
+    usingFallbackTrack,
   };
 }

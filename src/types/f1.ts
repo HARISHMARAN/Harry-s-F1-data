@@ -121,4 +121,5 @@ export interface ReplayDataset {
   total_laps: number;
   start_time: string;
   end_time: string;
+  usingFallbackTrack: boolean;
 }

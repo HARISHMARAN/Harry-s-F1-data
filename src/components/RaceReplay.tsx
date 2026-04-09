@@ -296,11 +296,13 @@ function pickDefaultSession(sessions: ReplaySessionSummary[]) {
 
 export default function RaceReplay() {
   const currentYear = new Date().getFullYear();
-  const replayYears = [currentYear, currentYear - 1, currentYear - 2];
+  const replayYears = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
   const animationFrameRef = useRef<number | null>(null);
   const lastFrameRef = useRef<number | null>(null);
 
-  const [selectedYear, setSelectedYear] = useState<number>(replayYears[0]);
+  // Default to the previous year — current-year data is often incomplete
+  // early in the season and gives poor replay quality.
+  const [selectedYear, setSelectedYear] = useState<number>(replayYears[1]);
   const [sessions, setSessions] = useState<ReplaySessionSummary[]>([]);
   const [selectedSessionKey, setSelectedSessionKey] = useState<number | null>(null);
   const [dataset, setDataset] = useState<ReplayDataset | null>(null);
@@ -583,6 +585,22 @@ export default function RaceReplay() {
                 </span>
               </div>
             </div>
+
+            {dataset.usingFallbackTrack && (
+              <div
+                style={{
+                  background: 'rgba(244,180,0,0.08)',
+                  border: '1px solid rgba(244,180,0,0.4)',
+                  borderRadius: '10px',
+                  padding: '0.6rem 1rem',
+                  marginBottom: '0.75rem',
+                  color: '#f4b400',
+                  fontSize: '0.85rem',
+                }}
+              >
+                Track GPS data unavailable for this session — showing a placeholder layout. Driver positions along the track are still accurate relative to each other.
+              </div>
+            )}
 
             <div className="replay-canvas">
               <svg
