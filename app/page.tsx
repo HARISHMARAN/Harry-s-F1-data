@@ -1,8 +1,14 @@
-export default function HomePage() {
-  return (
-    <main style={{ padding: "2rem", fontFamily: "sans-serif" }}>
-      <h1>F1 Pitwall</h1>
-      <p>Go to /pitwall for live telemetry.</p>
+import dynamic from "next/dynamic";
+
+const DashboardApp = dynamic(() => import("../src/App"), {
+  ssr: false,
+  loading: () => (
+    <main style={{ padding: "2rem", color: "#f2f2f2", fontFamily: "sans-serif" }}>
+      Loading Pitwall...
     </main>
-  );
+  ),
+});
+
+export default function HomePage() {
+  return <DashboardApp />;
 }

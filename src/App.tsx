@@ -1,9 +1,10 @@
+\"use client\";
+
 import Header from './components/Header';
 import LiveTiming from './components/LiveTiming';
 import SessionInfo from './components/SessionInfo';
 import MaxTracker from './components/MaxTracker';
 import AddonLibrary from './components/AddonLibrary';
-import RaceReplay from './components/RaceReplay';
 import TrackBackdrop from './components/TrackBackdrop';
 import DraggableWidget from './components/DraggableWidget';
 import ChatView from './components/chat/ChatView';
@@ -11,9 +12,10 @@ import { AlertCircle } from 'lucide-react';
 import { useDashboardData } from './hooks/useDashboardData';
 import { DASHBOARD_TITLE } from './constants';
 import { LeaderboardSkeleton } from './components/Skeleton';
-import './index.css';
+import { useRouter } from 'next/navigation';
 
 function App() {
+  const router = useRouter();
   const { state, dispatch } = useDashboardData();
   const { viewMode, session, leaderboard, maxStats, loading, errorMsg, selectedYear, selectedRound, seasonRaces } = state;
 
@@ -53,7 +55,7 @@ function App() {
               <button 
                 className={`toggle-btn ${viewMode === 'REPLAY' ? 'active' : ''}`}
                 style={{ backgroundColor: viewMode === 'REPLAY' ? 'rgba(0, 147, 204, 0.16)' : 'transparent', boxShadow: viewMode === 'REPLAY' ? '0 0 10px rgba(0, 147, 204, 0.25)' : 'none' }}
-                onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'REPLAY' })}
+                onClick={() => router.push('/replay')}
               >
                 RACE REPLAY
               </button>
@@ -111,13 +113,11 @@ function App() {
       <div style={{ position: 'relative', zIndex: 101, width: '100%' }}>
         {viewMode === 'ADDONS' ? (
           <AddonLibrary 
-            onOpenReplay={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'REPLAY' })}
+            onOpenReplay={() => router.push('/replay')}
             onOpenChat={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'CHAT' })}
           />
         ) : viewMode === 'CHAT' ? (
           <ChatView />
-        ) : viewMode === 'REPLAY' ? (
-          <RaceReplay />
         ) : loading ? (
           <div className="dashboard-grid">
             <div className="dashboard-column">

@@ -1,9 +1,5 @@
 import type { DashboardData, DriverPosition, SeasonRace } from '../types/f1';
-
-interface DriverLookupEntry {
-  color: string;
-  name: string;
-}
+import { DRIVERS } from '../../lib/constants/drivers';
 
 interface JolpicaSeasonResponse {
   MRData: {
@@ -60,35 +56,6 @@ interface JolpicaResultsResponse {
 }
 
 // Fetching historical completed race data from Jolpica (Ergast replacement)
-const D_LOOKUP: Record<string, DriverLookupEntry> = {
-  'VER': { color: '#3671C6', name: 'Max Verstappen' },
-  'PER': { color: '#AAAAAD', name: 'Sergio Perez' },
-  'HAM': { color: '#E8002D', name: 'Lewis Hamilton' },
-  'RUS': { color: '#27F4D2', name: 'George Russell' },
-  'LEC': { color: '#E8002D', name: 'Charles Leclerc' },
-  'SAI': { color: '#1868DB', name: 'Carlos Sainz' },
-  'NOR': { color: '#FF8000', name: 'Lando Norris' },
-  'PIA': { color: '#FF8000', name: 'Oscar Piastri' },
-  'ALO': { color: '#229971', name: 'Fernando Alonso' },
-  'STR': { color: '#229971', name: 'Lance Stroll' },
-  'GAS': { color: '#00A1E8', name: 'Pierre Gasly' },
-  'OCO': { color: '#B6BABD', name: 'Esteban Ocon' },
-  'ALB': { color: '#1868DB', name: 'Alex Albon' },
-  'TSU': { color: '#6692FF', name: 'Yuki Tsunoda' },
-  'RIC': { color: '#6692FF', name: 'Daniel Ricciardo' },
-  'LAW': { color: '#6692FF', name: 'Liam Lawson' },
-  'BOT': { color: '#AAAAAD', name: 'Valtteri Bottas' },
-  'ZHO': { color: '#00e701', name: 'Zhou Guanyu' },
-  'MAG': { color: '#B6BABD', name: 'Kevin Magnussen' },
-  'HUL': { color: '#A7ADB1', name: 'Nico Hulkenberg' },
-  'SAR': { color: '#1868DB', name: 'Logan Sargeant' },
-  'COL': { color: '#00A1E8', name: 'Franco Colapinto' },
-  'BEA': { color: '#B6BABD', name: 'Oliver Bearman' },
-  'HAD': { color: '#3671C6', name: 'Isack Hadjar' },
-  'LIN': { color: '#6692FF', name: 'Arvid Lindblad' },
-  'BOR': { color: '#A7ADB1', name: 'Gabriel Bortoleto' },
-  'ANT': { color: '#27F4D2', name: 'Andrea Kimi Antonelli' },
-};
 
 export async function fetchSeasonRaces(year: string): Promise<SeasonRace[]> {
   try {
@@ -130,9 +97,10 @@ export async function fetchHistoricalData(year?: string, round?: string): Promis
 
     const mappedLeaderboard: DriverPosition[] = race.Results.map((result) => {
       const code = result.Driver.code || 'UKN';
-      const meta = D_LOOKUP[code] || {
+      const meta = DRIVERS[code] || {
         color: '#ffffff',
         name: `${result.Driver.givenName} ${result.Driver.familyName}`,
+        team: result.Constructor.name,
       };
 
       if (code === 'VER') {

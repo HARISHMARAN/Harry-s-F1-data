@@ -58,15 +58,25 @@ async function fetchOpenF1<T>(path: string, params?: Record<string, string | num
 
 export async function getLatestRaceSession(now = new Date()): Promise<OpenF1Session | null> {
   const year = now.getUTCFullYear();
-  let sessions = await fetchOpenF1<OpenF1Session[]>("/sessions", {
-    year,
-    session_name: "Race",
-  });
+  let sessions: OpenF1Session[] = [];
 
-  if (!sessions.length) {
+  try {
     sessions = await fetchOpenF1<OpenF1Session[]>("/sessions", {
+      year,
       session_name: "Race",
     });
+  } catch {
+    sessions = [];
+  }
+
+  if (!sessions.length) {
+    try {
+      sessions = await fetchOpenF1<OpenF1Session[]>("/sessions", {
+        session_name: "Race",
+      });
+    } catch {
+      sessions = [];
+    }
   }
 
   if (!sessions.length) return null;
