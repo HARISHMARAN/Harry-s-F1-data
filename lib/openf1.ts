@@ -107,3 +107,14 @@ export async function getLapsForLapNumbers(sessionKey: number, lapNumbers: numbe
 export async function getIntervals(sessionKey: number) {
   return fetchOpenF1<OpenF1Interval[]>("/intervals", { session_key: sessionKey });
 }
+
+export type OpenF1Position = {
+  driver_number: number;
+  date: string;
+  x: number | null;
+  y: number | null;
+};
+
+export async function getSessionPositions(sessionKey: number | string) {
+  return fetchOpenF1<OpenF1Position[]>("/position", { session_key: sessionKey });
+}
