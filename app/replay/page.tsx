@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getLatestRaceSession, getSessionPositions, type OpenF1Position } from "../../lib/openf1";
 import { useReplay } from "../../hooks/useReplay";
 
 const FRAME_WINDOW_SEC = 0.12;
@@ -11,6 +10,13 @@ type ReplayPoint = {
   t: number;
   x: number;
   y: number;
+};
+
+type OpenF1Position = {
+  driver_number: number;
+  date: string;
+  x: number | null;
+  y: number | null;
 };
 
 type Bounds = {
@@ -32,13 +38,12 @@ export default function ReplayPage() {
 
     async function load() {
       try {
-        const session = await getLatestRaceSession();
-        if (!session) {
-          throw new Error("No race session available.");
+        const response = await fetch("/api/replay/positions", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`Replay API failed: ${response.status}`);
         }
-
-        const raw = await getSessionPositions(session.session_key);
-        const normalized = normalizePositions(raw);
+        const payload = (await response.json()) as { points: OpenF1Position[] };
+        const normalized = normalizePositions(payload.points ?? []);
 
         if (!active) return;
         setPoints(normalized.points);
