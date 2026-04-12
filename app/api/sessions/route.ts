@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getMeetings, getSessionsForMeeting, type OpenF1Meeting, type OpenF1Session } from "../../../lib/openf1";
+import { getRaceSessions, type OpenF1Session } from "../../../lib/openf1";
 
 export const runtime = "nodejs";
 
@@ -9,35 +9,22 @@ let lastFetchMs = 0;
 const CACHE_TTL_MS = 60_000;
 let inFlight: Promise<unknown[]> | null = null;
 
-function buildSessionSummaries(meetings: OpenF1Meeting[], sessions: OpenF1Session[]) {
-  const meetingsByKey = new Map<number, OpenF1Meeting>();
-  meetings.forEach((meeting) => meetingsByKey.set(meeting.meeting_key, meeting));
-
-  const sortedMeetings = [...meetings].sort((a, b) => Date.parse(a.date_start) - Date.parse(b.date_start));
-  const roundByMeeting = new Map<number, number>();
-  sortedMeetings.forEach((meeting, idx) => roundByMeeting.set(meeting.meeting_key, idx + 1));
-
-  return sessions
-    .filter((session) => session.session_name?.toLowerCase() === "race")
-    .map((session) => {
-      const meeting = meetingsByKey.get(session.meeting_key ?? -1);
-      const round = meeting ? roundByMeeting.get(meeting.meeting_key) ?? null : null;
-      return {
-        session_key: session.session_key,
-        session_type: session.session_type ?? session.session_name ?? "Race",
-        session_name: session.session_name,
-        date_start: session.date_start,
-        date_end: session.date_end ?? null,
-        meeting_key: session.meeting_key ?? meeting?.meeting_key ?? null,
-        circuit_key: session.circuit_key ?? null,
-        circuit_short_name: session.circuit_short_name ?? meeting?.circuit_short_name ?? "",
-        country_name: session.country_name ?? meeting?.country_name ?? "",
-        location: session.location ?? meeting?.location ?? "",
-        year: session.year ?? meeting?.year ?? null,
-        round: round ?? null,
-      };
-    })
-    .filter((row) => row.round !== null);
+function buildSessionSummaries(sessions: OpenF1Session[]) {
+  const sorted = [...sessions].sort((a, b) => Date.parse(a.date_start) - Date.parse(b.date_start));
+  return sorted.map((session, idx) => ({
+    session_key: session.session_key,
+    session_type: session.session_type ?? session.session_name ?? "Race",
+    session_name: session.session_name,
+    date_start: session.date_start,
+    date_end: session.date_end ?? null,
+    meeting_key: session.meeting_key ?? null,
+    circuit_key: session.circuit_key ?? null,
+    circuit_short_name: session.circuit_short_name ?? "",
+    country_name: session.country_name ?? "",
+    location: session.location ?? "",
+    year: session.year ?? null,
+    round: idx + 1,
+  }));
 }
 
 export async function GET(request: Request) {
@@ -53,12 +40,8 @@ export async function GET(request: Request) {
 
     if (!inFlight) {
       inFlight = (async () => {
-        const meetings = await getMeetings(year);
-        const sessionsByMeeting = await Promise.all(
-          meetings.map((meeting) => getSessionsForMeeting(meeting.meeting_key))
-        );
-        const sessions = sessionsByMeeting.flat();
-        return buildSessionSummaries(meetings, sessions);
+        const sessions = await getRaceSessions(year);
+        return buildSessionSummaries(sessions);
       })();
     }
 

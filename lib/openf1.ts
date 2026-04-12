@@ -7,6 +7,7 @@ export type OpenF1Session = {
   country_name?: string | null;
   location?: string | null;
   meeting_key?: number | null;
+  circuit_key?: number | null;
   session_type?: string | null;
   year?: number | null;
 };
@@ -133,6 +134,27 @@ export async function getMeetings(year: number) {
 
 export async function getSessionsForMeeting(meetingKey: number) {
   return fetchOpenF1<OpenF1Session[]>("/sessions", { meeting_key: meetingKey });
+}
+
+export async function getRaceSessions(year: number) {
+  let sessions: OpenF1Session[] = [];
+  try {
+    sessions = await fetchOpenF1<OpenF1Session[]>("/sessions", { year, session_name: "Race" });
+  } catch {
+    sessions = [];
+  }
+
+  if (!sessions.length) {
+    try {
+      sessions = await fetchOpenF1<OpenF1Session[]>("/sessions", { session_name: "Race" });
+      const filtered = sessions.filter((session) => session.year === year);
+      if (filtered.length) return filtered;
+    } catch {
+      sessions = [];
+    }
+  }
+
+  return sessions;
 }
 
 export async function getLaps(sessionKey: number) {

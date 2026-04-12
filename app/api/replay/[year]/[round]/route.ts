@@ -3,24 +3,18 @@ import { DRIVERS } from "../../../../../lib/constants/drivers";
 import {
   getDrivers,
   getLaps,
-  getMeetings,
   getRaceControl,
   getSessionPositions,
-  getSessionsForMeeting,
+  getRaceSessions,
   type OpenF1Lap,
-  type OpenF1Meeting,
   type OpenF1Session,
-} from "../../../../lib/openf1";
+} from "../../../../../lib/openf1";
 
 export const runtime = "nodejs";
 
 function normalizeTeamColour(colour?: string | null) {
   if (!colour) return "AAAAAA";
   return colour.replace("#", "");
-}
-
-function pickRaceSession(sessions: OpenF1Session[]) {
-  return sessions.find((session) => session.session_name?.toLowerCase() === "race") ?? null;
 }
 
 function computeTimeBounds(laps: OpenF1Lap[], fallbackStart: string, fallbackEnd?: string | null) {
@@ -57,16 +51,9 @@ export async function GET(_: Request, { params }: { params: { year: string; roun
       return NextResponse.json({ error: "Invalid year or round" }, { status: 400 });
     }
 
-    const meetings = await getMeetings(year);
-    const sortedMeetings = [...meetings].sort((a, b) => Date.parse(a.date_start) - Date.parse(b.date_start));
-    const meeting: OpenF1Meeting | undefined = sortedMeetings[round - 1];
-
-    if (!meeting) {
-      return NextResponse.json({ error: "Replay session not found" }, { status: 404 });
-    }
-
-    const sessions = await getSessionsForMeeting(meeting.meeting_key);
-    const raceSession = pickRaceSession(sessions);
+    const sessions = await getRaceSessions(year);
+    const sortedSessions = [...sessions].sort((a, b) => Date.parse(a.date_start) - Date.parse(b.date_start));
+    const raceSession: OpenF1Session | undefined = sortedSessions[round - 1];
     if (!raceSession) {
       return NextResponse.json({ error: "Race session not found" }, { status: 404 });
     }
@@ -97,11 +84,7 @@ export async function GET(_: Request, { params }: { params: { year: string; roun
     });
 
     const totalLaps = laps.reduce((max, lap) => Math.max(max, lap.lap_number), 0);
-    const timeBounds = computeTimeBounds(
-      laps,
-      raceSession.date_start,
-      raceSession.date_end ?? meeting.date_end ?? null
-    );
+    const timeBounds = computeTimeBounds(laps, raceSession.date_start, raceSession.date_end ?? null);
 
     const dataset = {
       session: {
@@ -109,12 +92,12 @@ export async function GET(_: Request, { params }: { params: { year: string; roun
         session_type: raceSession.session_type ?? raceSession.session_name ?? "Race",
         session_name: raceSession.session_name,
         date_start: raceSession.date_start,
-        date_end: raceSession.date_end ?? meeting.date_end ?? null,
-        meeting_key: meeting.meeting_key,
+        date_end: raceSession.date_end ?? null,
+        meeting_key: raceSession.meeting_key ?? null,
         circuit_key: raceSession.circuit_key ?? null,
-        circuit_short_name: raceSession.circuit_short_name ?? meeting.circuit_short_name ?? "",
-        country_name: raceSession.country_name ?? meeting.country_name ?? "",
-        location: raceSession.location ?? meeting.location ?? "",
+        circuit_short_name: raceSession.circuit_short_name ?? "",
+        country_name: raceSession.country_name ?? "",
+        location: raceSession.location ?? "",
         year: year,
         round: round,
       },
