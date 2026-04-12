@@ -9,7 +9,7 @@ async function askQuestion(question: string) {
 
   const queryRes = await queryDatabase(embedding.data[0].embedding);
 
-  const response = await generateResponse(question, queryRes.map((doc) => doc.text));
+  const response = await generateResponse(question, queryRes.map((doc: { text: string }) => doc.text));
 
   return response;
 }
