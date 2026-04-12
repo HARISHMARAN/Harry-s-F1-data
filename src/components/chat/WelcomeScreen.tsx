@@ -1,3 +1,5 @@
+import { getChatApiBase, getChatMode } from '../../services/chatConfig';
+
 const SUGGESTIONS = [
   'Who has the most F1 World Championships?',
   "Who is Lewis Hamilton's teammate?",
@@ -10,12 +12,8 @@ interface WelcomeScreenProps {
 }
 
 export default function WelcomeScreen({ onSuggestion }: WelcomeScreenProps) {
-  const apiBase =
-    process.env.NEXT_PUBLIC_FORMULA_CHAT_API_URL ??
-    process.env.NEXT_PUBLIC_CHAT_API_BASE ??
-    '';
-  const rawChatMode = (process.env.NEXT_PUBLIC_CHAT_MODE ?? '').toLowerCase();
-  const chatMode = rawChatMode || (apiBase ? 'online' : 'offline');
+  const apiBase = getChatApiBase();
+  const chatMode = getChatMode();
   const isOffline = chatMode !== 'online';
 
   return (

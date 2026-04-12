@@ -6,17 +6,14 @@ import ChatInput from './ChatInput';
 import TypingIndicator from './TypingIndicator';
 import WelcomeScreen from './WelcomeScreen';
 import './chat.css';
+import { getChatApiBase, getChatMode } from '../../services/chatConfig';
 
 export default function ChatView() {
   const { messages, isLoading, activeToolCall, lastError, sendMessage, clearMessages, clearError } = useChat();
   const bottomRef = useRef<HTMLDivElement>(null);
   const [apiStatus, setApiStatus] = useState<'checking' | 'ok' | 'degraded' | 'down'>('checking');
-  const apiBase =
-    process.env.NEXT_PUBLIC_FORMULA_CHAT_API_URL ??
-    process.env.NEXT_PUBLIC_CHAT_API_BASE ??
-    '';
-  const rawChatMode = (process.env.NEXT_PUBLIC_CHAT_MODE ?? '').toLowerCase();
-  const chatMode = rawChatMode || (apiBase ? 'online' : 'offline');
+  const apiBase = getChatApiBase();
+  const chatMode = getChatMode();
   const isOffline = chatMode !== 'online';
 
   useEffect(() => {

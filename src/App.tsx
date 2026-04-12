@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from 'react';
+
 import Header from './components/Header';
 import LiveTiming from './components/LiveTiming';
 import SessionInfo from './components/SessionInfo';
@@ -12,10 +14,11 @@ import { AlertCircle } from 'lucide-react';
 import { useDashboardData } from './hooks/useDashboardData';
 import { DASHBOARD_TITLE } from './constants';
 import { LeaderboardSkeleton } from './components/Skeleton';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 function App() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { state, dispatch } = useDashboardData();
   const {
     viewMode,
@@ -32,6 +35,15 @@ function App() {
   } = state;
   const isLive = liveStatus === 'LIVE';
   const nextSchedule = nextSession ?? (session?.status === 'NO_RACE' ? session : null);
+
+  useEffect(() => {
+    const mode = searchParams.get('mode');
+    if (!mode) return;
+    if (mode === 'live') dispatch({ type: 'SET_VIEW_MODE', payload: 'LIVE' });
+    if (mode === 'historical') dispatch({ type: 'SET_VIEW_MODE', payload: 'HISTORICAL' });
+    if (mode === 'addons') dispatch({ type: 'SET_VIEW_MODE', payload: 'ADDONS' });
+    if (mode === 'chat') dispatch({ type: 'SET_VIEW_MODE', payload: 'CHAT' });
+  }, [searchParams, dispatch]);
 
   return (
     <div className="app-container" style={{ position: 'relative', minHeight: '100vh' }}>

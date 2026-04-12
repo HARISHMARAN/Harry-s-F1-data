@@ -38,6 +38,22 @@ let lastFetchMs = 0;
 const CACHE_TTL_MS = 5000;
 let inFlight: Promise<TelemetryPayload> | null = null;
 
+async function fetchWithRetry<T>(fn: () => Promise<T>, maxAttempts = 3) {
+  let attempt = 0;
+  let delayMs = 500;
+  while (attempt < maxAttempts) {
+    try {
+      return await fn();
+    } catch (err) {
+      attempt += 1;
+      if (attempt >= maxAttempts) throw err;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      delayMs *= 2;
+    }
+  }
+  throw new Error("Retry attempts exhausted");
+}
+
 export async function GET() {
   try {
     const now = Date.now();
@@ -47,9 +63,9 @@ export async function GET() {
 
     if (!inFlight) {
       inFlight = (async () => {
-        const session = await getLatestRaceSession();
+        const session = await fetchWithRetry(() => getLatestRaceSession());
         if (!session) {
-          const nextSession = await getNextRaceSession();
+          const nextSession = await fetchWithRetry(() => getNextRaceSession());
           return {
             status: "no_live",
             session: "no-live-session",
@@ -71,8 +87,8 @@ export async function GET() {
         }
 
         const [drivers, intervals] = await Promise.all([
-          getDrivers(session.session_key),
-          getIntervals(session.session_key),
+          fetchWithRetry(() => getDrivers(session.session_key)),
+          fetchWithRetry(() => getIntervals(session.session_key)),
         ]);
 
         const lapNumbers = intervals
@@ -82,8 +98,8 @@ export async function GET() {
         const maxLap = lapNumbers.length ? Math.max(...lapNumbers) : null;
         const laps =
           maxLap !== null
-            ? await getLapsForLapNumbers(session.session_key, [maxLap, maxLap - 1])
-            : await getLaps(session.session_key);
+            ? await fetchWithRetry(() => getLapsForLapNumbers(session.session_key, [maxLap, maxLap - 1]))
+            : await fetchWithRetry(() => getLaps(session.session_key));
 
         return {
           status: "live",
@@ -105,10 +121,27 @@ export async function GET() {
         headers: { "x-telemetry-stale": "true" },
       });
     }
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const nextSession = await getNextRaceSession().catch(() => null);
     return NextResponse.json(
-      { error: "Failed to fetch telemetry", detail: message },
-      { status: 500 }
+      {
+        status: "no_live",
+        session: "no-live-session",
+        timestamp: Math.floor(Date.now() / 1000),
+        drivers: [],
+        next_session: nextSession
+          ? {
+              session_key: nextSession.session_key,
+              session_name: nextSession.session_name,
+              session_type: nextSession.session_type ?? "Race",
+              country_name: nextSession.country_name ?? "",
+              location: nextSession.location ?? "",
+              circuit_short_name: nextSession.circuit_short_name ?? nextSession.session_name,
+              date_start: nextSession.date_start ?? null,
+              date_end: nextSession.date_end ?? null,
+            }
+          : null,
+      },
+      { status: 200 }
     );
   }
 }
