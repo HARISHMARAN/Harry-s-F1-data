@@ -2,11 +2,13 @@
 node_modules/
 dist/
 build/
+.next/
 
 # Python
 venv/
 __pycache__/
 .env
+.env.local
 
 # IDE directories
 .vscode/
