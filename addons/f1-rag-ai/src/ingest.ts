@@ -16,12 +16,12 @@ async function ingest() {
   await (Promise.all(urls.map(async (url) => {
     let data = await scrape(url);
 
-    const embeddings = await Promise.all(data.map(async (doc, index) => {
+    const embeddings = await Promise.all(data.map(async (doc: { pageContent: string }, index) => {
       const embedding = await generateEmbedding(doc.pageContent);
       return embedding;
     }));
 
-    chunks = chunks.concat(data.map((doc, index) => {
+    chunks = chunks.concat(data.map((doc: { pageContent: string }, index) => {
       return {
         text: doc.pageContent,
         $vector: embeddings[index].data[0].embedding,
@@ -42,6 +42,5 @@ async function ingest() {
 }
 
 ingest();
-
 
 

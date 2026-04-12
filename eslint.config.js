@@ -13,13 +13,15 @@ export default defineConfig([
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
-      next.configs.recommended,
-      next.configs['core-web-vitals'],
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
     ],
     plugins: {
       '@next/next': next,
+    },
+    rules: {
+      ...next.configs.recommended.rules,
+      ...next.configs['core-web-vitals'].rules,
     },
     languageOptions: {
       ecmaVersion: 2020,
