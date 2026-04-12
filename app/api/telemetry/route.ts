@@ -6,14 +6,37 @@ import {
   getLaps,
   getLapsForLapNumbers,
   getLatestRaceSession,
+  getNextRaceSession,
 } from "../../../lib/openf1";
 
 export const runtime = "nodejs";
 
-let cachedPayload: ReturnType<typeof buildTelemetryResponse> | null = null;
+type TelemetryPayload =
+  | (ReturnType<typeof buildTelemetryResponse> & {
+      status: "live";
+      next_session?: null;
+    })
+  | {
+      status: "no_live";
+      session: string;
+      timestamp: number;
+      drivers: ReturnType<typeof buildTelemetryResponse>["drivers"];
+      next_session: {
+        session_key: number | string;
+        session_name: string;
+        session_type: string;
+        country_name: string;
+        location: string;
+        circuit_short_name: string;
+        date_start: string | null;
+        date_end: string | null;
+      } | null;
+    };
+
+let cachedPayload: TelemetryPayload | null = null;
 let lastFetchMs = 0;
 const CACHE_TTL_MS = 5000;
-let inFlight: Promise<ReturnType<typeof buildTelemetryResponse>> | null = null;
+let inFlight: Promise<TelemetryPayload> | null = null;
 
 export async function GET() {
   try {
@@ -26,7 +49,25 @@ export async function GET() {
       inFlight = (async () => {
         const session = await getLatestRaceSession();
         if (!session) {
-          throw new Error("No race session found for current year.");
+          const nextSession = await getNextRaceSession();
+          return {
+            status: "no_live",
+            session: "no-live-session",
+            timestamp: Math.floor(Date.now() / 1000),
+            drivers: [],
+            next_session: nextSession
+              ? {
+                  session_key: nextSession.session_key,
+                  session_name: nextSession.session_name,
+                  session_type: nextSession.session_type ?? "Race",
+                  country_name: nextSession.country_name ?? "",
+                  location: nextSession.location ?? "",
+                  circuit_short_name: nextSession.circuit_short_name ?? nextSession.session_name,
+                  date_start: nextSession.date_start ?? null,
+                  date_end: nextSession.date_end ?? null,
+                }
+              : null,
+          };
         }
 
         const [drivers, intervals] = await Promise.all([
@@ -44,7 +85,10 @@ export async function GET() {
             ? await getLapsForLapNumbers(session.session_key, [maxLap, maxLap - 1])
             : await getLaps(session.session_key);
 
-        return buildTelemetryResponse(session, drivers, laps, intervals);
+        return {
+          status: "live",
+          ...buildTelemetryResponse(session, drivers, laps, intervals),
+        };
       })();
     }
 

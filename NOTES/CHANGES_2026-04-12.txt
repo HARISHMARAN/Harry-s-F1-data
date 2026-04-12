@@ -1,0 +1,39 @@
+2026-04-12 — Live Telemetry “Track Clear” + Replay Hardening
+
+Summary
+- Added explicit no-live-session handling for telemetry; dashboard now shows “Track clear” and next race schedule when no race is live.
+- Added next-race lookup via OpenF1 schedule to surface upcoming session details.
+- Replay API hardened with caching and retry handling to avoid demo fallbacks when OpenF1 rate-limits.
+
+API / Data Layer
+- app/api/telemetry/route.ts
+  - Returns status: live | no_live.
+  - When no live race, returns empty drivers + next_session payload (if available).
+- lib/openf1.ts
+  - Added getNextRaceSession() for upcoming schedule lookup.
+- app/api/replay/[year]/[round]/route.ts
+  - Added longer cache TTL and retry/backoff for OpenF1 calls.
+  - Returns partial data with warnings instead of failing hard on rate limits.
+
+Client / UI
+- src/services/openf1.ts
+  - Maps telemetry status/next_session into DashboardData.
+- src/hooks/useDashboardData.ts
+  - Added liveStatus + nextSession to state.
+- src/components/LiveTiming.tsx
+  - Renders Track Clear + next race schedule when no live telemetry.
+- src/components/SessionInfo.tsx
+  - Reflects next session context when live data is unavailable.
+- src/App.tsx
+  - Uses liveStatus for header/footers and passes next schedule to LiveTiming.
+- src/types/f1.ts
+  - Added live_status and next_session fields for dashboard data.
+- src/services/jolpica.ts
+  - Included live_status in historical payloads for type consistency.
+
+Other touched files
+- app/layout.tsx
+- app/page.tsx
+
+Backup
+- Branch: backup/pre-live-telemetry-2026-04-12

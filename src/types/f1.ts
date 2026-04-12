@@ -18,6 +18,7 @@ export interface DashboardSession {
   date_start: string;
   date_end?: string;
   current_lap: string | number;
+  status?: 'LIVE' | 'NO_RACE';
 }
 
 export interface MaxStats {
@@ -31,6 +32,8 @@ export interface DashboardData {
   session: DashboardSession;
   leaderboard: DriverPosition[];
   max_stats: MaxStats;
+  live_status: 'LIVE' | 'NO_RACE';
+  next_session?: DashboardSession | null;
 }
 
 export interface SeasonRace {

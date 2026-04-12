@@ -124,6 +124,33 @@ export async function getLatestRaceSession(now = new Date()): Promise<OpenF1Sess
   return sorted[0] ?? sessions[0] ?? null;
 }
 
+export async function getNextRaceSession(now = new Date()): Promise<OpenF1Session | null> {
+  const year = now.getUTCFullYear();
+
+  const fetchYear = async (targetYear: number) => {
+    try {
+      return await fetchOpenF1<OpenF1Session[]>("/sessions", {
+        year: targetYear,
+        session_name: "Race",
+      });
+    } catch {
+      return [] as OpenF1Session[];
+    }
+  };
+
+  const sessionsThisYear = await fetchYear(year);
+  const nextInYear = sessionsThisYear
+    .filter((session) => (session.date_start ? Date.parse(session.date_start) > now.getTime() : false))
+    .sort((a, b) => Date.parse(a.date_start) - Date.parse(b.date_start))[0];
+
+  if (nextInYear) return nextInYear;
+
+  const sessionsNextYear = await fetchYear(year + 1);
+  return sessionsNextYear
+    .filter((session) => session.date_start)
+    .sort((a, b) => Date.parse(a.date_start) - Date.parse(b.date_start))[0] ?? null;
+}
+
 export async function getDrivers(sessionKey: number) {
   return fetchOpenF1<OpenF1Driver[]>("/drivers", { session_key: sessionKey });
 }

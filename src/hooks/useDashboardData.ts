@@ -11,6 +11,8 @@ interface DashboardState {
   session: DashboardSession | null;
   leaderboard: DriverPosition[];
   maxStats: MaxStats | null;
+  liveStatus: 'LIVE' | 'NO_RACE';
+  nextSession: DashboardSession | null;
   loading: boolean;
   errorMsg: string | null;
   selectedYear: string;
@@ -23,7 +25,16 @@ type DashboardAction =
   | { type: 'SET_YEAR'; payload: string }
   | { type: 'SET_ROUND'; payload: string | null }
   | { type: 'FETCH_START' }
-  | { type: 'FETCH_SUCCESS'; payload: { session: DashboardSession; leaderboard: DriverPosition[]; max_stats: MaxStats | null } }
+  | {
+      type: 'FETCH_SUCCESS';
+      payload: {
+        session: DashboardSession;
+        leaderboard: DriverPosition[];
+        max_stats: MaxStats | null;
+        live_status: 'LIVE' | 'NO_RACE';
+        next_session?: DashboardSession | null;
+      };
+    }
   | { type: 'FETCH_ERROR'; payload: string }
   | { type: 'LOAD_CALENDAR'; payload: SeasonRace[] }
   | { type: 'RESET_HISTORICAL'; payload: { year: string; round: string | null; races: SeasonRace[] } };
@@ -45,6 +56,8 @@ const dashboardReducer = (state: DashboardState, action: DashboardAction): Dashb
         session: action.payload.session,
         leaderboard: action.payload.leaderboard,
         maxStats: action.payload.max_stats,
+        liveStatus: action.payload.live_status,
+        nextSession: action.payload.next_session ?? null,
       };
     case 'FETCH_ERROR':
       return {
@@ -53,6 +66,8 @@ const dashboardReducer = (state: DashboardState, action: DashboardAction): Dashb
         errorMsg: action.payload,
         session: null,
         leaderboard: [],
+        liveStatus: 'NO_RACE',
+        nextSession: null,
       };
     case 'LOAD_CALENDAR':
       return { ...state, seasonRaces: action.payload };
@@ -73,6 +88,8 @@ const initialState: DashboardState = {
   session: null,
   leaderboard: [],
   maxStats: null,
+  liveStatus: 'NO_RACE',
+  nextSession: null,
   loading: true,
   errorMsg: null,
   selectedYear: DEFAULT_YEAR,

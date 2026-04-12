@@ -139,6 +139,8 @@ export async function fetchHistoricalData(year?: string, round?: string): Promis
         started: `P${maxGrid}`,
         tyres: 'STATIC DATA',
       },
+      live_status: 'LIVE',
+      next_session: null,
     };
   } catch (err: unknown) {
     console.error('Jolpica api failed', err);

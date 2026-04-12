@@ -9,12 +9,15 @@ export default function SessionInfo({ session }: SessionInfoProps) {
   if (!session) return null;
 
   const startDate = new Date(session.date_start);
+  const isNoRace = session.status === 'NO_RACE';
   
   return (
     <div className="glass-panel" style={{ padding: '1.25rem' }}>
       <div className="panel-header" style={{ border: 'none', padding: '0 0 1rem 0' }}>
         <Activity size={16} color="var(--accent-f1)" />
-        <h2 className="panel-title" style={{ fontSize: '0.8rem', letterSpacing: '2px' }}>SESSION SPECS</h2>
+        <h2 className="panel-title" style={{ fontSize: '0.8rem', letterSpacing: '2px' }}>
+          {isNoRace ? 'NEXT SESSION' : 'SESSION SPECS'}
+        </h2>
       </div>
       
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -23,7 +26,7 @@ export default function SessionInfo({ session }: SessionInfoProps) {
             {session.circuit_short_name}
           </h3>
           <p style={{ color: 'var(--accent-cyan)', fontWeight: 700, fontSize: '0.8rem', letterSpacing: '1px' }}>
-            {session.session_name.toUpperCase()}
+            {isNoRace ? 'TRACK CLEAR' : session.session_name.toUpperCase()}
           </p>
         </div>
 
@@ -59,7 +62,8 @@ export default function SessionInfo({ session }: SessionInfoProps) {
           borderRadius: '8px'
         }}>
           <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', lineHeight: '1.4', textAlign: 'center' }}>
-            <span style={{ color: 'var(--text-secondary)', fontWeight: '700' }}>SOURCE:</span> OPENF1 LIVE TELEMETRY ENGINE
+            <span style={{ color: 'var(--text-secondary)', fontWeight: '700' }}>SOURCE:</span>{' '}
+            {isNoRace ? 'OPENF1 SCHEDULE FEED' : 'OPENF1 LIVE TELEMETRY ENGINE'}
           </p>
         </div>
       </div>

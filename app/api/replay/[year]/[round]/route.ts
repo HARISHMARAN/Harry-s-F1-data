@@ -48,7 +48,7 @@ type ReplayCacheEntry = {
   timestamp: number;
 };
 
-const CACHE_TTL_MS = 30_000;
+const CACHE_TTL_MS = 30 * 60_000;
 const cache = new Map<string, ReplayCacheEntry>();
 const inFlight = new Map<string, Promise<unknown>>();
 
@@ -75,21 +75,35 @@ export async function GET(
       inFlight.set(
         cacheKey,
         (async () => {
-          const sessions = await getRaceSessions(year);
+          const warnings: string[] = [];
+          const sessions =
+            (await fetchWithRetry(() => getRaceSessions(year), "sessions", warnings)) ?? [];
+
           const sortedSessions = [...sessions].sort((a, b) => Date.parse(a.date_start) - Date.parse(b.date_start));
           const raceSession: OpenF1Session | undefined = sortedSessions[round - 1];
           if (!raceSession) {
             throw new Error("Race session not found");
           }
 
-          const [driversRaw, laps, positions, raceControl] = await Promise.all([
-            getDrivers(raceSession.session_key),
-            getLaps(raceSession.session_key),
-            getSessionPositions(raceSession.session_key),
-            getRaceControl(raceSession.session_key),
+          const [driversRaw, laps] = await Promise.all([
+            fetchWithRetry(() => getDrivers(raceSession.session_key), "drivers", warnings),
+            fetchWithRetry(() => getLaps(raceSession.session_key), "laps", warnings),
           ]);
 
-          const drivers = driversRaw.map((driver) => {
+          const positions = await fetchWithRetry(
+            () => getSessionPositions(raceSession.session_key),
+            "positions",
+            warnings
+          );
+          const raceControl = await fetchWithRetry(
+            () => getRaceControl(raceSession.session_key),
+            "race_control",
+            warnings
+          );
+
+          const safeDrivers = driversRaw ?? [];
+          const safeLaps = laps ?? [];
+          const drivers = safeDrivers.map((driver) => {
             const code = driver.name_acronym ?? driver.broadcast_name ?? String(driver.driver_number);
             const meta = DRIVERS[code] ?? null;
             return {
@@ -107,8 +121,8 @@ export async function GET(
             };
           });
 
-          const totalLaps = laps.reduce((max, lap) => Math.max(max, lap.lap_number), 0);
-          const timeBounds = computeTimeBounds(laps, raceSession.date_start, raceSession.date_end ?? null);
+          const totalLaps = safeLaps.reduce((max, lap) => Math.max(max, lap.lap_number), 0);
+          const timeBounds = computeTimeBounds(safeLaps, raceSession.date_start, raceSession.date_end ?? null);
 
           return {
             session: {
@@ -126,9 +140,9 @@ export async function GET(
               round: round,
             },
             drivers,
-            laps,
-            positions,
-            race_control: raceControl,
+            laps: safeLaps,
+            positions: positions ?? [],
+            race_control: raceControl ?? [],
             track: {
               points: [],
               source_driver_number: drivers[0]?.driver_number ?? 0,
@@ -136,17 +150,58 @@ export async function GET(
             total_laps: totalLaps,
             start_time: timeBounds.start_time,
             end_time: timeBounds.end_time,
+            warnings,
           };
         })()
       );
     }
 
-    const payload = await inFlight.get(cacheKey)!;
-    inFlight.delete(cacheKey);
-    cache.set(cacheKey, { payload, timestamp: now });
-    return NextResponse.json(payload);
+    try {
+      const payload = await inFlight.get(cacheKey)!;
+      inFlight.delete(cacheKey);
+      cache.set(cacheKey, { payload, timestamp: Date.now() });
+      return NextResponse.json(payload);
+    } catch (error) {
+      inFlight.delete(cacheKey);
+      if (cached) {
+        return NextResponse.json(cached.payload, {
+          status: 200,
+          headers: { "x-replay-cache": "stale" },
+        });
+      }
+      const message = error instanceof Error ? error.message : "Unknown error";
+      return NextResponse.json({ error: "Failed to build replay dataset", detail: message }, { status: 503 });
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: "Failed to build replay dataset", detail: message }, { status: 500 });
   }
+}
+
+async function fetchWithRetry<T>(
+  fn: () => Promise<T>,
+  label: string,
+  warnings: string[],
+  maxAttempts = 3
+): Promise<T | null> {
+  let attempt = 0;
+  let delayMs = 500;
+
+  while (attempt < maxAttempts) {
+    try {
+      return await fn();
+    } catch (err) {
+      attempt += 1;
+      const message = err instanceof Error ? err.message : String(err);
+      if (attempt >= maxAttempts) {
+        warnings.push(`${label} unavailable: ${message}`);
+        return null;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      delayMs *= 2;
+    }
+  }
+
+  warnings.push(`${label} unavailable: exceeded retries`);
+  return null;
 }

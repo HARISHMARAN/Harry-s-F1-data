@@ -4,9 +4,30 @@ import type { DriverPosition } from '../types/f1';
 interface LiveTimingProps {
   data: DriverPosition[];
   title?: string;
+  liveStatus?: 'LIVE' | 'NO_RACE';
+  nextSession?: {
+    session_name: string;
+    location: string;
+    country_name: string;
+    date_start: string;
+  } | null;
 }
 
-export default function LiveTiming({ data, title = "Live Timing & Intervals" }: LiveTimingProps) {
+function formatSchedule(dateIso?: string) {
+  if (!dateIso) return 'TBD';
+  const date = new Date(dateIso);
+  return `${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} @ ${date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
+}
+
+export default function LiveTiming({
+  data,
+  title = "Live Timing & Intervals",
+  liveStatus = 'LIVE',
+  nextSession = null,
+}: LiveTimingProps) {
   if (!data || data.length === 0) {
     return (
       <div className="glass-panel col-span-8">
@@ -14,9 +35,28 @@ export default function LiveTiming({ data, title = "Live Timing & Intervals" }: 
           <Trophy size={18} color="var(--accent-f1)" />
           <h2 className="panel-title">{title}</h2>
         </div>
-        <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '3rem' }}>
-          NO TIMING DATA AVAILABLE FOR THIS SESSION.
-        </div>
+        {liveStatus === 'NO_RACE' ? (
+          <div style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '2.5rem 2rem', lineHeight: 1.6 }}>
+            <div style={{ fontSize: '0.9rem', letterSpacing: '1px', color: 'var(--accent-cyan)', fontWeight: 700 }}>
+              TRACK CLEAR — NO LIVE SESSION
+            </div>
+            <div style={{ marginTop: '0.75rem', color: 'var(--text-muted)' }}>
+              {nextSession ? (
+                <>
+                  Next up: <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{nextSession.session_name}</span>
+                  <br />
+                  {nextSession.location}, {nextSession.country_name} — {formatSchedule(nextSession.date_start)}
+                </>
+              ) : (
+                'Next race schedule is not available yet.'
+              )}
+            </div>
+          </div>
+        ) : (
+          <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '3rem' }}>
+            NO TIMING DATA AVAILABLE FOR THIS SESSION.
+          </div>
+        )}
       </div>
     );
   }

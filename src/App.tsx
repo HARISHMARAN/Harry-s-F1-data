@@ -1,4 +1,4 @@
-\"use client\";
+"use client";
 
 import Header from './components/Header';
 import LiveTiming from './components/LiveTiming';
@@ -17,7 +17,21 @@ import { useRouter } from 'next/navigation';
 function App() {
   const router = useRouter();
   const { state, dispatch } = useDashboardData();
-  const { viewMode, session, leaderboard, maxStats, loading, errorMsg, selectedYear, selectedRound, seasonRaces } = state;
+  const {
+    viewMode,
+    session,
+    leaderboard,
+    maxStats,
+    loading,
+    errorMsg,
+    selectedYear,
+    selectedRound,
+    seasonRaces,
+    liveStatus,
+    nextSession,
+  } = state;
+  const isLive = liveStatus === 'LIVE';
+  const nextSchedule = nextSession ?? (session?.status === 'NO_RACE' ? session : null);
 
   return (
     <div className="app-container" style={{ position: 'relative', minHeight: '100vh' }}>
@@ -34,7 +48,7 @@ function App() {
         <div style={{ pointerEvents: 'auto' }}>
           <Header 
             sessionName={DASHBOARD_TITLE} 
-            isLive={viewMode === 'LIVE'} 
+            isLive={viewMode === 'LIVE' && isLive} 
           />
           
           {/* Mode Toggle Switch */}
@@ -153,7 +167,14 @@ function App() {
               </div>
 
               <DraggableWidget id="leaderboard" title={viewMode === 'LIVE' ? 'LIVE TIMING & INTERVALS' : 'RACE CLASSIFICATION'} defaultX={20} defaultY={80}>
-                {leaderboard && <LiveTiming data={leaderboard} title="" />}
+                {leaderboard && (
+                  <LiveTiming
+                    data={leaderboard}
+                    title=""
+                    liveStatus={viewMode === 'LIVE' ? liveStatus : 'LIVE'}
+                    nextSession={viewMode === 'LIVE' ? nextSchedule : null}
+                  />
+                )}
               </DraggableWidget>
 
               <DraggableWidget id="focused_driver" title="DRIVER FOCUS" defaultX={window.innerWidth - 380} defaultY={80}>
@@ -195,13 +216,15 @@ function App() {
                <span>{session?.session_name || 'INITIALIZING...'}</span>
             </div>
             <div className="status-item">
-               <span>LAP {session?.current_lap || '--'}/71</span>
+               <span>{isLive ? `LAP ${session?.current_lap || '--'}/71` : 'NO LIVE LAPS'}</span>
             </div>
             <div className="status-item">
                <span>LOC: {session?.location || 'TRACKSIDE'}</span>
             </div>
             <div className="status-item">
-               <span style={{ color: 'var(--accent-success)' }}>TRACK CLEAR</span>
+               <span style={{ color: isLive ? 'var(--accent-success)' : 'var(--accent-f1)' }}>
+                {isLive ? 'LIVE' : 'TRACK CLEAR'}
+               </span>
             </div>
          </div>
          <div className="pipeline-info" style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>

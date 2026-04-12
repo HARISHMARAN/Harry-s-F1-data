@@ -18,6 +18,17 @@ interface TelemetryResponse {
   session: string;
   timestamp: number;
   drivers: TelemetryDriver[];
+  status?: 'live' | 'no_live';
+  next_session?: {
+    session_key: number | string;
+    session_name: string;
+    session_type?: string | null;
+    country_name?: string | null;
+    location?: string | null;
+    circuit_short_name?: string | null;
+    date_start?: string | null;
+    date_end?: string | null;
+  } | null;
 }
 
 function formatLapTime(seconds: number | null) {
@@ -46,6 +57,9 @@ export async function fetchLiveDashboardData(): Promise<DashboardData> {
     if (!payload || !Array.isArray(payload.drivers)) {
       throw new Error('Telemetry API returned invalid payload.');
     }
+
+    const liveStatus = payload.status === 'live' ? 'LIVE' : 'NO_RACE';
+    const nextSessionPayload = payload.next_session ?? null;
 
     const driversSorted = [...payload.drivers].sort((a, b) => {
       if (a.position === null && b.position === null) return 0;
@@ -77,8 +91,8 @@ export async function fetchLiveDashboardData(): Promise<DashboardData> {
     const maxStats: MaxStats = {
       best_lap: formatLapTime(minLap),
       top_speed: 'UNAVAILABLE',
-      started: 'LIVE',
-      tyres: 'UNKNOWN',
+      started: liveStatus === 'LIVE' ? 'LIVE' : 'TRACK CLEAR',
+      tyres: liveStatus === 'LIVE' ? 'UNKNOWN' : 'N/A',
     };
 
     const currentLap = payload.drivers.reduce((max, driver) => {
@@ -86,19 +100,63 @@ export async function fetchLiveDashboardData(): Promise<DashboardData> {
       return max;
     }, 0);
 
+    const fallbackSession = nextSessionPayload
+      ? {
+          session_key: nextSessionPayload.session_key,
+          session_name: nextSessionPayload.session_name,
+          session_type: nextSessionPayload.session_type ?? 'Race',
+          country_name: nextSessionPayload.country_name ?? '',
+          location: nextSessionPayload.location ?? '',
+          circuit_short_name: nextSessionPayload.circuit_short_name ?? nextSessionPayload.session_name,
+          date_start: nextSessionPayload.date_start ?? new Date().toISOString(),
+          date_end: nextSessionPayload.date_end ?? undefined,
+          current_lap: '--',
+          status: 'NO_RACE' as const,
+        }
+      : {
+          session_key: payload.session,
+          session_name: 'NO LIVE SESSION',
+          session_type: 'Race',
+          country_name: '',
+          location: '',
+          circuit_short_name: 'TRACK CLEAR',
+          date_start: new Date().toISOString(),
+          current_lap: '--',
+          status: 'NO_RACE' as const,
+        };
+
     return {
-      session: {
-        session_key: payload.session,
-        session_name: payload.session.toUpperCase(),
-        session_type: 'Race',
-        country_name: 'OpenF1',
-        location: 'Trackside',
-        circuit_short_name: payload.session,
-        date_start: new Date(payload.timestamp * 1000).toISOString(),
-        current_lap: currentLap || '--',
-      },
+      session:
+        liveStatus === 'LIVE'
+          ? {
+              session_key: payload.session,
+              session_name: payload.session.toUpperCase(),
+              session_type: 'Race',
+              country_name: 'OpenF1',
+              location: 'Trackside',
+              circuit_short_name: payload.session,
+              date_start: new Date(payload.timestamp * 1000).toISOString(),
+              current_lap: currentLap || '--',
+              status: 'LIVE',
+            }
+          : fallbackSession,
       leaderboard: mappedLeaderboard,
       max_stats: maxStats,
+      live_status: liveStatus,
+      next_session: nextSessionPayload
+        ? {
+            session_key: nextSessionPayload.session_key,
+            session_name: nextSessionPayload.session_name,
+            session_type: nextSessionPayload.session_type ?? 'Race',
+            country_name: nextSessionPayload.country_name ?? '',
+            location: nextSessionPayload.location ?? '',
+            circuit_short_name: nextSessionPayload.circuit_short_name ?? nextSessionPayload.session_name,
+            date_start: nextSessionPayload.date_start ?? new Date().toISOString(),
+            date_end: nextSessionPayload.date_end ?? undefined,
+            current_lap: '--',
+            status: 'NO_RACE',
+          }
+        : null,
     };
   } catch (err: unknown) {
     console.error('Telemetry backend error:', err);
