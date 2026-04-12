@@ -9,9 +9,8 @@ import type {
 /**
  * Harry's Pitwall - Replay Service (v2)
  *
- * Instead of fetching raw telemetry from OpenF1 directly in the browser,
- * this service calls our local Python backend which uses FastF1 for
- * high-performance data processing and local caching.
+ * Serverless replay service (OpenF1-backed).
+ * These endpoints are implemented in Next API routes.
  */
 
 function ensureDriverRoster(
@@ -51,7 +50,7 @@ export async function fetchReplaySessions(year: number): Promise<ReplaySessionSu
   try {
     const response = await fetch(`/api/sessions?year=${year}`);
     if (!response.ok) {
-      throw new Error('Failed to fetch replay sessions from local backend.');
+      throw new Error('Failed to fetch replay sessions.');
     }
     return await response.json();
   } catch (error) {
@@ -64,7 +63,7 @@ export async function fetchReplayDataset(
   session: ReplaySessionSummary,
   onProgress?: (message: string) => void,
 ): Promise<ReplayDataset> {
-  onProgress?.('Fetching optimized race telemetry from local Python backend...');
+  onProgress?.('Fetching OpenF1 replay dataset...');
 
   try {
     const response = await fetch(`/api/replay/${session.year}/${session.round}`);
@@ -73,7 +72,7 @@ export async function fetchReplayDataset(
       throw new Error(errorData.detail || 'Failed to fetch replay dataset.');
     }
 
-    onProgress?.('Processing dashboard replay stream...');
+    onProgress?.('Processing replay stream...');
     const data = await response.json();
 
     const laps = data.laps ?? [];

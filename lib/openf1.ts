@@ -2,8 +2,23 @@ export type OpenF1Session = {
   session_key: number;
   session_name: string;
   date_start: string;
+  date_end?: string | null;
   circuit_short_name?: string | null;
   country_name?: string | null;
+  location?: string | null;
+  meeting_key?: number | null;
+  session_type?: string | null;
+  year?: number | null;
+};
+
+export type OpenF1Meeting = {
+  meeting_key: number;
+  meeting_name?: string | null;
+  date_start: string;
+  date_end?: string | null;
+  circuit_short_name?: string | null;
+  country_name?: string | null;
+  location?: string | null;
   year?: number | null;
 };
 
@@ -13,6 +28,11 @@ export type OpenF1Driver = {
   full_name?: string | null;
   broadcast_name?: string | null;
   team_name?: string | null;
+  team_colour?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  headshot_url?: string | null;
+  country_code?: string | null;
 };
 
 export type OpenF1Lap = {
@@ -32,6 +52,15 @@ export type OpenF1Interval = {
   interval?: string | number | null;
   date?: string | null;
   lap_number?: number | null;
+};
+
+export type OpenF1RaceControl = {
+  date: string;
+  category?: string | null;
+  flag?: string | null;
+  message?: string | null;
+  lap_number?: number | null;
+  driver_number?: number | null;
 };
 
 const BASE_URL = "https://api.openf1.org/v1/";
@@ -98,6 +127,14 @@ export async function getDrivers(sessionKey: number) {
   return fetchOpenF1<OpenF1Driver[]>("/drivers", { session_key: sessionKey });
 }
 
+export async function getMeetings(year: number) {
+  return fetchOpenF1<OpenF1Meeting[]>("/meetings", { year });
+}
+
+export async function getSessionsForMeeting(meetingKey: number) {
+  return fetchOpenF1<OpenF1Session[]>("/sessions", { meeting_key: meetingKey });
+}
+
 export async function getLaps(sessionKey: number) {
   return fetchOpenF1<OpenF1Lap[]>("/laps", { session_key: sessionKey });
 }
@@ -117,6 +154,10 @@ export async function getLapsForLapNumbers(sessionKey: number, lapNumbers: numbe
 
 export async function getIntervals(sessionKey: number) {
   return fetchOpenF1<OpenF1Interval[]>("/intervals", { session_key: sessionKey });
+}
+
+export async function getRaceControl(sessionKey: number) {
+  return fetchOpenF1<OpenF1RaceControl[]>("/race_control", { session_key: sessionKey });
 }
 
 export type OpenF1Position = {
