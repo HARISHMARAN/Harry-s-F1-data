@@ -1,4 +1,6 @@
-import dynamic from "next/dynamic";
+\"use client\";
+
+import dynamic from \"next/dynamic\";
 
 const DashboardApp = dynamic(() => import("../src/App"), {
   ssr: false,
