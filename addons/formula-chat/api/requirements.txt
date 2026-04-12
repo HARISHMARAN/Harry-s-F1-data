@@ -12,7 +12,7 @@ asyncpg==0.31.0
 pgvector==0.4.2
 
 # Security / validation
-sqlglot==30.2.1
+sqlglot==30.4.2
 
 # Rate limiting
 slowapi==0.1.9
