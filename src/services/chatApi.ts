@@ -1,4 +1,4 @@
-const CHAT_API_URL = import.meta.env.VITE_FORMULA_CHAT_API_URL as string | undefined;
+const CHAT_API_URL = process.env.NEXT_PUBLIC_FORMULA_CHAT_API_URL as string | undefined;
 
 export async function getOnlineChatbotResponse(message: string): Promise<string> {
   if (!CHAT_API_URL) {

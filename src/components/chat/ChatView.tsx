@@ -12,10 +12,10 @@ export default function ChatView() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [apiStatus, setApiStatus] = useState<'checking' | 'ok' | 'degraded' | 'down'>('checking');
   const apiBase =
-    import.meta.env.VITE_FORMULA_CHAT_API_URL ??
-    import.meta.env.VITE_CHAT_API_BASE ??
+    process.env.NEXT_PUBLIC_FORMULA_CHAT_API_URL ??
+    process.env.NEXT_PUBLIC_CHAT_API_BASE ??
     '';
-  const rawChatMode = (import.meta.env.VITE_CHAT_MODE ?? '').toLowerCase();
+  const rawChatMode = (process.env.NEXT_PUBLIC_CHAT_MODE ?? '').toLowerCase();
   const chatMode = rawChatMode || (apiBase ? 'online' : 'offline');
   const isOffline = chatMode !== 'online';
 
