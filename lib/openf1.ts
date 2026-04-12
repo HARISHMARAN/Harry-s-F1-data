@@ -37,7 +37,8 @@ export type OpenF1Interval = {
 const BASE_URL = "https://api.openf1.org/v1";
 
 function buildUrl(path: string, params?: Record<string, string | number | boolean | undefined>) {
-  const url = new URL(path, BASE_URL);
+  const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
+  const url = new URL(normalizedPath, BASE_URL);
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
       if (value === undefined) return;
