@@ -113,7 +113,7 @@ export async function GET() {
     cachedPayload = telemetry;
     lastFetchMs = now;
     return NextResponse.json(telemetry, { status: 200 });
-  } catch (error) {
+  } catch {
     inFlight = null;
     if (cachedPayload) {
       return NextResponse.json(cachedPayload, {

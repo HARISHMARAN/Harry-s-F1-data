@@ -1,4 +1,4 @@
-import { getChatApiBase, getChatMode } from '../../services/chatConfig';
+import { getChatMode } from '../../services/chatConfig';
 
 const SUGGESTIONS = [
   'Who has the most F1 World Championships?',
@@ -12,7 +12,6 @@ interface WelcomeScreenProps {
 }
 
 export default function WelcomeScreen({ onSuggestion }: WelcomeScreenProps) {
-  const apiBase = getChatApiBase();
   const chatMode = getChatMode();
   const isOffline = chatMode !== 'online';
 
