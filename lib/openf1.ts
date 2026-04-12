@@ -34,7 +34,7 @@ export type OpenF1Interval = {
   lap_number?: number | null;
 };
 
-const BASE_URL = "https://api.openf1.org/v1";
+const BASE_URL = "https://api.openf1.org/v1/";
 
 function buildUrl(path: string, params?: Record<string, string | number | boolean | undefined>) {
   const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
