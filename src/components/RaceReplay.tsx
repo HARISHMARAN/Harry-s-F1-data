@@ -13,6 +13,7 @@ import { fetchReplayDataset, fetchReplaySessions } from '../services/replay';
 import { buildTrackPath, getTrackPointsForCircuit, normalizeTrack } from '../services/trackLayout';
 import type {
   ReplayDataset,
+  ReplayDrsZone,
   ReplayDriver,
   ReplayLap,
   ReplayPositionSample,
@@ -31,6 +32,7 @@ interface ReplayMarker {
   y: number;
   compound: string | null;
   drsUsed: boolean | null;
+  drsActiveNow: boolean;
   sectorPercent: number;
 }
 
@@ -194,6 +196,137 @@ function SectorBars({ progress }: { progress: number }) {
   );
 }
 
+function DrsZoneRail({
+  zones,
+  currentFraction,
+}: {
+  zones: ReplayDrsZone[];
+  currentFraction: number;
+}) {
+  if (!zones.length) {
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          top: '120px',
+          right: '14px',
+          width: '92px',
+          padding: '0.55rem',
+          borderRadius: '16px',
+          background: 'rgba(5, 10, 8, 0.72)',
+          border: '1px solid rgba(0, 210, 190, 0.14)',
+          color: 'var(--text-muted)',
+          fontSize: '0.62rem',
+          letterSpacing: '0.14em',
+          textTransform: 'uppercase',
+        }}
+      >
+        DRS data
+        <br />
+        unavailable
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: '120px',
+        right: '14px',
+        width: '92px',
+        padding: '0.55rem 0.45rem',
+        borderRadius: '16px',
+        background: 'rgba(5, 10, 8, 0.72)',
+        border: '1px solid rgba(0, 210, 190, 0.18)',
+        boxShadow: '0 0 24px rgba(0, 210, 190, 0.08)',
+        backdropFilter: 'blur(10px)',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: '0.58rem', letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+          DRS
+        </span>
+        <span style={{ color: '#00d2be', fontSize: '0.58rem', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+          ZONES
+        </span>
+      </div>
+      <div
+        style={{
+          position: 'relative',
+          height: '210px',
+          borderRadius: '999px',
+          background: 'linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
+          border: '1px solid rgba(255,255,255,0.06)',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            inset: '0 44%',
+            background: 'linear-gradient(180deg, rgba(0, 210, 190, 0.08), rgba(0, 210, 190, 0.02))',
+          }}
+        />
+        {zones.map((zone) => {
+          const start = Math.max(0, Math.min(1, zone.start_fraction));
+          const end = Math.max(start, Math.min(1, zone.end_fraction));
+          const top = `${(1 - end) * 100}%`;
+          const height = `${Math.max((end - start) * 100, 2.2)}%`;
+          const isActive = currentFraction >= start && currentFraction <= end;
+
+          return (
+            <div
+              key={`${zone.start_fraction}-${zone.end_fraction}-${zone.sample_count}`}
+              style={{
+                position: 'absolute',
+                left: '12px',
+                right: '12px',
+                top,
+                height,
+                borderRadius: '999px',
+                background: isActive
+                  ? 'linear-gradient(180deg, rgba(0, 210, 190, 0.95), rgba(21, 209, 204, 0.55))'
+                  : 'linear-gradient(180deg, rgba(0, 210, 190, 0.75), rgba(0, 210, 190, 0.18))',
+                boxShadow: isActive ? '0 0 14px rgba(0, 240, 255, 0.55)' : '0 0 8px rgba(0, 210, 190, 0.16)',
+              }}
+            >
+              <span
+                style={{
+                  position: 'absolute',
+                  right: 'calc(100% + 6px)',
+                  top: '-2px',
+                  color: isActive ? '#00f0ff' : 'rgba(200, 200, 207, 0.75)',
+                  fontSize: '0.58rem',
+                  fontWeight: 900,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {zone.label ?? 'DRS'}
+              </span>
+            </div>
+          );
+        })}
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: `${(1 - currentFraction) * 100}%`,
+            transform: 'translate(-50%, -50%)',
+            width: '10px',
+            height: '10px',
+            borderRadius: '999px',
+            background: '#00f0ff',
+            boxShadow: '0 0 14px rgba(0, 240, 255, 0.9)',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function groupByDriver<T extends { driver_number: number }>(rows: T[]) {
   const grouped = new Map<number, T[]>();
 
@@ -325,6 +458,9 @@ function buildReplayMarkers(
     const positionRows = positionsByDriver.get(driver.driver_number) ?? [];
     const lapState = getLapState(lapRows, replayTime);
     const markerPoint = pointAtFraction(normalizedTrack, lapState.lapFraction);
+    const drsActiveNow = (dataset.drs_zones ?? []).some(
+      (zone) => lapState.lapFraction >= zone.start_fraction && lapState.lapFraction <= zone.end_fraction,
+    );
 
     markers.push({
       driver,
@@ -336,6 +472,7 @@ function buildReplayMarkers(
       y: markerPoint.y,
       compound: lapState.compound,
       drsUsed: lapState.drsUsed,
+      drsActiveNow,
       sectorPercent: lapState.lapFraction,
     });
   });
@@ -734,6 +871,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
     return (
       <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
         <div className="replay-stage" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+          <DrsZoneRail zones={dataset?.drs_zones ?? []} currentFraction={focusedDriver?.lapFraction ?? 0} />
           
           <div style={{ position: 'absolute', bottom: '30px', right: '30px', display: 'flex', gap: '8px', zIndex: 5 }}>
              <button className="replay-button" style={{ padding: '0.4rem 0.8rem', fontSize: '1rem', fontWeight: 'bold' }} onClick={() => setZoom(z => Math.max(0.5, z - 0.2))}>-</button>
@@ -802,17 +940,17 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                     <circle
                       cx={marker.x}
                       cy={marker.y}
-                      r={selectedDriverNumber === marker.driver.driver_number ? 10 : 7}
+                      r={selectedDriverNumber === marker.driver.driver_number ? 8 : 5.5}
                       fill={`#${marker.driver.team_colour}`}
                       stroke="rgba(0,0,0,0.5)"
-                      strokeWidth="2"
+                      strokeWidth="1.5"
                     />
                     <rect
-                      x={marker.x - 5}
-                      y={marker.y + 6}
-                      width={10}
-                      height={5}
-                      rx={2.5}
+                      x={marker.x - 3.5}
+                      y={marker.y + 4.5}
+                      width={7}
+                      height={3.5}
+                      rx={1.75}
                       fill={`#${marker.driver.team_colour}`}
                       opacity={0.9}
                     />
@@ -956,7 +1094,8 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
         </div>
       ) : dataset ? (
         <div className="replay-layout">
-          <div className="glass-panel replay-stage">
+        <div className="glass-panel replay-stage">
+            <DrsZoneRail zones={dataset.drs_zones ?? []} currentFraction={focusedDriver?.lapFraction ?? 0} />
             <div className="panel-header" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <h2 className="panel-title" style={{ marginBottom: '0.35rem' }}>
@@ -1015,17 +1154,17 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                     <circle
                       cx={marker.x}
                       cy={marker.y}
-                      r={selectedDriverNumber === marker.driver.driver_number ? 13 : 9}
+                      r={selectedDriverNumber === marker.driver.driver_number ? 9 : 6.5}
                       fill={`#${marker.driver.team_colour}`}
                       stroke="rgba(10, 10, 12, 0.95)"
-                      strokeWidth={selectedDriverNumber === marker.driver.driver_number ? 4 : 2}
+                      strokeWidth={selectedDriverNumber === marker.driver.driver_number ? 2.5 : 1.5}
                     />
                     <rect
-                      x={marker.x - 7}
-                      y={marker.y + 8}
-                      width={14}
-                      height={6}
-                      rx={3}
+                      x={marker.x - 4.5}
+                      y={marker.y + 5.5}
+                      width={9}
+                      height={4}
+                      rx={2}
                       fill={`#${marker.driver.team_colour}`}
                       opacity={0.9}
                     />
@@ -1150,7 +1289,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                     </span>
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem', alignItems: 'center' }}>
                       <TyreBadge compound={focusedDriver.compound} />
-                      <DrsLight active={focusedDriver.drsUsed} />
+                      <DrsLight active={focusedDriver.drsActiveNow} />
                     </div>
                   </div>
                 </div>
@@ -1190,7 +1329,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                       L{marker.lapNumber || 0}
                     </span>
                     <TyreBadge compound={marker.compound} />
-                    <DrsLight active={marker.drsUsed} />
+                    <DrsLight active={marker.drsActiveNow} />
                     <SectorBars progress={marker.sectorPercent} />
                   </button>
                 ))}

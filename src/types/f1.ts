@@ -119,6 +119,13 @@ export interface ReplayTrackOutline {
   source_driver_number: number;
 }
 
+export interface ReplayDrsZone {
+  start_fraction: number;
+  end_fraction: number;
+  sample_count: number;
+  label?: string;
+}
+
 export interface ReplayDataset {
   session: ReplaySessionSummary;
   drivers: ReplayDriver[];
@@ -126,6 +133,7 @@ export interface ReplayDataset {
   positions: ReplayPositionSample[];
   race_control: ReplayRaceControlMessage[];
   track: ReplayTrackOutline;
+  drs_zones?: ReplayDrsZone[];
   total_laps: number;
   start_time: string;
   end_time: string;

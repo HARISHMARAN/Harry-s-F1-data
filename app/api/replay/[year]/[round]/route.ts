@@ -73,7 +73,96 @@ function deriveDrsUsageForLap(carData: OpenF1CarData[], lapStartMs: number, lapE
     return time >= lapStartMs && time <= lapEndMs;
   });
 
-  return samples.some((sample) => Number(sample.drs ?? 0) >= 10);
+  return samples.some((sample) => {
+    const drs = Number(sample.drs ?? 0);
+    const speed = Number(sample.speed ?? 0);
+    const throttle = Number(sample.throttle ?? 0);
+    const brake = Number(sample.brake ?? 0);
+    return [10, 12, 14].includes(drs) && speed >= 120 && throttle >= 80 && brake <= 10;
+  });
+}
+
+function findLapForTimestamp(laps: OpenF1Lap[], timestampMs: number) {
+  const ordered = [...laps].sort((a, b) => {
+    const aStart = a.date_start ? Date.parse(a.date_start) : 0;
+    const bStart = b.date_start ? Date.parse(b.date_start) : 0;
+    return aStart - bStart;
+  });
+
+  for (let index = 0; index < ordered.length; index += 1) {
+    const lap = ordered[index];
+    const start = lap.date_start ? Date.parse(lap.date_start) : 0;
+    const next = ordered[index + 1];
+    const end = next?.date_start
+      ? Date.parse(next.date_start)
+      : start + (lap.lap_duration ? lap.lap_duration * 1000 : 90_000);
+
+    if (timestampMs >= start && timestampMs <= end) {
+      return { lap, start, end };
+    }
+  }
+
+  return null;
+}
+
+function buildDrsZones(
+  driverCarData: OpenF1CarData[],
+  driverLaps: OpenF1Lap[],
+) {
+  const samples: number[] = [];
+
+  for (const sample of driverCarData) {
+    const time = Date.parse(sample.date);
+    const lapMatch = findLapForTimestamp(driverLaps, time);
+    if (!lapMatch) continue;
+
+    const drs = Number(sample.drs ?? 0);
+    const speed = Number(sample.speed ?? 0);
+    const throttle = Number(sample.throttle ?? 0);
+    const brake = Number(sample.brake ?? 0);
+    const active = [10, 12, 14].includes(drs) && speed >= 120 && throttle >= 80 && brake <= 10;
+
+    if (!active) continue;
+
+    const fraction = (time - lapMatch.start) / Math.max(lapMatch.end - lapMatch.start, 1000);
+    if (fraction >= 0 && fraction <= 1) {
+      samples.push(fraction);
+    }
+  }
+
+  if (!samples.length) {
+    return [];
+  }
+
+  const sorted = [...samples].sort((a, b) => a - b);
+  const zones: Array<{ start_fraction: number; end_fraction: number; sample_count: number }> = [];
+  const gapThreshold = 0.06;
+  let zoneStart = sorted[0];
+  let zoneEnd = sorted[0];
+  let count = 1;
+
+  for (let index = 1; index < sorted.length; index += 1) {
+    const current = sorted[index];
+    if (current - zoneEnd <= gapThreshold) {
+      zoneEnd = current;
+      count += 1;
+      continue;
+    }
+
+    zones.push({ start_fraction: zoneStart, end_fraction: zoneEnd, sample_count: count });
+    zoneStart = current;
+    zoneEnd = current;
+    count = 1;
+  }
+
+  zones.push({ start_fraction: zoneStart, end_fraction: zoneEnd, sample_count: count });
+
+  return zones
+    .filter((zone) => zone.end_fraction - zone.start_fraction >= 0.015 || zone.sample_count >= 4)
+    .map((zone, index) => ({
+      ...zone,
+      label: `DRS ${index + 1}`,
+    }));
 }
 
 type ReplayCacheEntry = {
@@ -184,6 +273,41 @@ export async function GET(
             }
           }
 
+          const drsZoneMap = new Map<
+            string,
+            { start_fraction: number; end_fraction: number; sample_count: number }
+          >();
+
+          safeDrivers.forEach((driver) => {
+            const driverLaps = lapsByDriver.get(driver.driver_number) ?? [];
+            const driverCarData = carDataByDriver.get(driver.driver_number) ?? [];
+            const zones = buildDrsZones(driverCarData, driverLaps);
+
+            zones.forEach((zone) => {
+              const key = `${Math.round(zone.start_fraction * 1000)}-${Math.round(zone.end_fraction * 1000)}`;
+              const existing = drsZoneMap.get(key);
+              if (existing) {
+                existing.start_fraction = Math.min(existing.start_fraction, zone.start_fraction);
+                existing.end_fraction = Math.max(existing.end_fraction, zone.end_fraction);
+                existing.sample_count += zone.sample_count;
+                return;
+              }
+
+              drsZoneMap.set(key, {
+                start_fraction: zone.start_fraction,
+                end_fraction: zone.end_fraction,
+                sample_count: zone.sample_count,
+              });
+            });
+          });
+
+          const drsZones = Array.from(drsZoneMap.values())
+            .sort((a, b) => a.start_fraction - b.start_fraction)
+            .map((zone, index) => ({
+              ...zone,
+              label: `DRS ${index + 1}`,
+            }));
+
           const enrichedLaps = safeLaps.map((lap) => {
             const driverLaps = lapsByDriver.get(lap.driver_number) ?? [];
             const orderedDriverLaps = [...driverLaps].sort((a, b) => {
@@ -191,7 +315,9 @@ export async function GET(
               const bStart = b.date_start ? Date.parse(b.date_start) : 0;
               return aStart - bStart;
             });
-            const currentIndex = orderedDriverLaps.findIndex((entry) => entry.lap_number === lap.lap_number && entry.date_start === lap.date_start);
+            const currentIndex = orderedDriverLaps.findIndex(
+              (entry) => entry.lap_number === lap.lap_number && entry.date_start === lap.date_start
+            );
             const nextLap = currentIndex >= 0 ? orderedDriverLaps[currentIndex + 1] : undefined;
             const lapStart = lap.date_start ? Date.parse(lap.date_start) : 0;
             const lapEnd = getLapEndTime(lap, nextLap);
@@ -230,6 +356,7 @@ export async function GET(
               points: [],
               source_driver_number: drivers[0]?.driver_number ?? 0,
             },
+            drs_zones: drsZones,
             total_laps: totalLaps,
             start_time: timeBounds.start_time,
             end_time: timeBounds.end_time,
