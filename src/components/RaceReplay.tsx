@@ -4,6 +4,8 @@ import {
   Flag,
   Gauge,
   LoaderCircle,
+  Maximize2,
+  Minimize2,
   Pause,
   Play,
   Radio,
@@ -553,6 +555,66 @@ interface RaceReplayProps {
   isEmbedded?: boolean;
 }
 
+type ReplayLayoutMode = 'balanced' | 'track-focus' | 'data-focus';
+
+function StartLightStrip({ replayMs }: { replayMs: number }) {
+  const startWindowMs = 5000;
+  const lightCount = 5;
+  const activeLights = replayMs <= startWindowMs ? Math.max(0, Math.min(lightCount, Math.ceil((replayMs / startWindowMs) * lightCount))) : lightCount;
+  const isGo = replayMs > startWindowMs;
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gap: '0.35rem',
+        padding: '0.55rem 0.7rem',
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.04)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        minWidth: 160,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center' }}>
+        <span style={{ fontSize: '0.58rem', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+          Start Lights
+        </span>
+        <span style={{ fontSize: '0.58rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: isGo ? '#00d2be' : '#ea3323', fontWeight: 900 }}>
+          {isGo ? 'GO' : 'ARMED'}
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.35rem' }}>
+        {Array.from({ length: lightCount }).map((_, index) => {
+          const lit = isGo ? true : index < activeLights;
+          return (
+            <span
+              key={index}
+              style={{
+                height: 10,
+                borderRadius: 999,
+                background: lit
+                  ? isGo
+                    ? 'linear-gradient(180deg, #00d2be, #00f0ff)'
+                    : 'linear-gradient(180deg, #ff4d4f, #ea3323)'
+                  : 'rgba(255,255,255,0.08)',
+                boxShadow: lit ? `0 0 10px ${isGo ? 'rgba(0, 240, 255, 0.75)' : 'rgba(234, 51, 35, 0.75)'}` : 'none',
+              }}
+            />
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: '0.58rem', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+          {isGo ? 'Race underway' : 'Pre-start sequence'}
+        </span>
+        <span style={{ color: 'var(--text-primary)', fontSize: '0.72rem', fontFamily: 'monospace' }}>
+          {formatReplayClock(replayMs)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
   const currentYear = new Date().getFullYear();
   const replayYears = [currentYear, currentYear - 1, currentYear - 2];
@@ -573,6 +635,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
   const [replayMs, setReplayMs] = useState<number>(0);
   const [zoom, setZoom] = useState<number>(1);
   const [demoMode, setDemoMode] = useState<boolean>(false);
+  const [layoutMode, setLayoutMode] = useState<ReplayLayoutMode>('balanced');
 
   const demoSessions = useMemo<ReplaySessionSummary[]>(() => [
     {
@@ -949,6 +1012,9 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
       <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
         <div className="replay-stage" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
           <DrsZoneRail zones={dataset?.drs_zones ?? []} currentFraction={focusedDriver?.lapFraction ?? 0} />
+          <div style={{ position: 'absolute', top: '64px', left: '14px', zIndex: 5 }}>
+            <StartLightStrip replayMs={replayMs} />
+          </div>
           
           <div style={{ position: 'absolute', bottom: '30px', right: '30px', display: 'flex', gap: '8px', zIndex: 5 }}>
              <button className="replay-button" style={{ padding: '0.4rem 0.8rem', fontSize: '1rem', fontWeight: 'bold' }} onClick={() => setZoom(z => Math.max(0.5, z - 0.2))}>-</button>
@@ -1157,6 +1223,26 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
         </div>
       </div>
 
+      {!isEmbedded && dataset && (
+        <div className="glass-panel" style={{ padding: '0.8rem 1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span className="replay-label" style={{ marginRight: '0.15rem' }}>Layout</span>
+              <button type="button" className={`speed-chip ${layoutMode === 'balanced' ? 'active' : ''}`} onClick={() => setLayoutMode('balanced')}>
+                Balanced
+              </button>
+              <button type="button" className={`speed-chip ${layoutMode === 'track-focus' ? 'active' : ''}`} onClick={() => setLayoutMode('track-focus')}>
+                <Maximize2 size={12} /> Track Focus
+              </button>
+              <button type="button" className={`speed-chip ${layoutMode === 'data-focus' ? 'active' : ''}`} onClick={() => setLayoutMode('data-focus')}>
+                <Minimize2 size={12} /> Data Focus
+              </button>
+            </div>
+            <StartLightStrip replayMs={replayMs} />
+          </div>
+        </div>
+      )}
+
       {loadingReplay ? (
         <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center' }}>
           <LoaderCircle size={36} className="spin-icon" style={{ margin: '0 auto 1rem auto' }} />
@@ -1170,9 +1256,22 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
           <p style={{ color: 'var(--text-secondary)', maxWidth: '620px', margin: '0 auto' }}>{errorMsg}</p>
         </div>
       ) : dataset ? (
-        <div className="replay-layout">
+        <div
+          className="replay-layout"
+          style={{
+            gridTemplateColumns:
+              layoutMode === 'track-focus'
+                ? 'minmax(0, 1.9fr) minmax(280px, 0.7fr)'
+                : layoutMode === 'data-focus'
+                  ? 'minmax(0, 1.05fr) minmax(420px, 1.15fr)'
+                  : undefined,
+          }}
+        >
         <div className="glass-panel replay-stage">
             <DrsZoneRail zones={dataset.drs_zones ?? []} currentFraction={focusedDriver?.lapFraction ?? 0} />
+            <div style={{ position: 'absolute', top: '64px', left: '14px', zIndex: 5 }}>
+              <StartLightStrip replayMs={replayMs} />
+            </div>
             <div className="panel-header" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <h2 className="panel-title" style={{ marginBottom: '0.35rem' }}>
