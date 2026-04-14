@@ -72,6 +72,12 @@ export default function LiveTiming({
            <span style={{ fontSize: '0.65rem', color: 'var(--accent-cyan)', fontWeight: 'bold', letterSpacing: '1px' }}>INTERVALS</span>
         </div>
       </div>
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', padding: '0.8rem 1rem 0' }}>
+        <span className="speed-chip active" style={{ fontSize: '0.65rem', padding: '0.25rem 0.5rem' }}>PIT WALL</span>
+        <span className="speed-chip" style={{ fontSize: '0.65rem', padding: '0.25rem 0.5rem' }}>SECTOR DELTA</span>
+        <span className="speed-chip" style={{ fontSize: '0.65rem', padding: '0.25rem 0.5rem' }}>TYRE</span>
+        <span className="speed-chip" style={{ fontSize: '0.65rem', padding: '0.25rem 0.5rem' }}>DRS</span>
+      </div>
       
       <div className="timing-table-wrapper">
         <table className="timing-table">
@@ -100,6 +106,10 @@ export default function LiveTiming({
                       {/* Real Performance Track Integration */}
                       <div className="perf-track">
                          <div className="perf-fill" style={{ width: `${100 - (row.position * 2)}%` }} />
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
+                        <span className="speed-chip" style={{ fontSize: '0.6rem', padding: '0.18rem 0.42rem' }}>RADIO</span>
+                        <span className="speed-chip" style={{ fontSize: '0.6rem', padding: '0.18rem 0.42rem' }}>PIT WALL</span>
                       </div>
                     </div>
                   </div>

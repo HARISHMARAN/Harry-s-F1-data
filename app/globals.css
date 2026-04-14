@@ -140,11 +140,38 @@ h1, h2, h3, h4, h5, h6 {
   100% { transform: scale(0.95); opacity: 0.8; box-shadow: 0 0 0 0 rgba(234, 51, 35, 0); }
 }
 
+@keyframes signalStripePulse {
+  0% {
+    transform: scaleY(0.78);
+    opacity: 0.35;
+    filter: brightness(0.85);
+  }
+  45% {
+    transform: scaleY(1);
+    opacity: 1;
+    filter: brightness(1.3);
+  }
+  100% {
+    transform: scaleY(0.78);
+    opacity: 0.45;
+    filter: brightness(0.9);
+  }
+}
+
 .live-text {
   color: var(--accent-f1);
   font-size: 0.85rem;
   font-weight: 700;
   letter-spacing: 2px;
+}
+
+.signal-stripe {
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(0, 240, 255, 0.14), rgba(0, 240, 255, 0.88), rgba(0, 240, 255, 0.16));
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.18);
+  animation: signalStripePulse 1.8s infinite ease-in-out;
+  transform-origin: center;
 }
 
 /* 3-Column Command Center Grid */
@@ -689,4 +716,88 @@ h1, h2, h3, h4, h5, h6 {
   .telemetry-bar-content {
     gap: 1.5rem;
   }
+}
+
+
+.f1-badge {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(234, 51, 35, 0.95), rgba(255, 105, 97, 0.5));
+  box-shadow: 0 0 24px rgba(234, 51, 35, 0.25);
+  font-family: 'Outfit', sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: white;
+}
+
+.header-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.header-title-wrapper h1 {
+  font-size: 1.45rem;
+  text-transform: uppercase;
+}
+
+.speed-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-light);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+}
+
+.speed-chip.active {
+  background: rgba(234, 51, 35, 0.14);
+  border-color: rgba(234, 51, 35, 0.3);
+  color: #ffb2ac;
+}
+
+.telemetry-strip {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.telemetry-strip .strip-item {
+  min-width: 120px;
+  padding: 0.7rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid var(--border-light);
+  background: rgba(255,255,255,0.04);
+}
+
+.replay-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.replay-row .speed-chip {
+  flex-shrink: 0;
+}
+
+.pit-lane-band {
+  position: relative;
+  overflow: hidden;
+}
+
+.pit-lane-band::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 50%, transparent 100%);
+  opacity: 0.4;
+  pointer-events: none;
 }

@@ -6,6 +6,8 @@ export interface DriverPosition {
   team_name: string;
   team_colour: string;
   date: string;
+  sector_delta?: string;
+  pit_status?: string;
 }
 
 export interface DashboardSession {

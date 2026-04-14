@@ -19,6 +19,17 @@ export default function SessionInfo({ session }: SessionInfoProps) {
           {isNoRace ? 'NEXT SESSION' : 'SESSION SPECS'}
         </h2>
       </div>
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+        <span className="speed-chip active" style={{ fontSize: '0.65rem', padding: '0.25rem 0.5rem' }}>
+          {isNoRace ? 'GRID PENDING' : 'SESSION ACTIVE'}
+        </span>
+        <span className="speed-chip" style={{ fontSize: '0.65rem', padding: '0.25rem 0.5rem' }}>
+          {session.session_type.toUpperCase()}
+        </span>
+        <span className="speed-chip" style={{ fontSize: '0.65rem', padding: '0.25rem 0.5rem' }}>
+          {session.status === 'NO_RACE' ? 'TRACK CLEAR' : 'LIVE FEED'}
+        </span>
+      </div>
       
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         <div>
@@ -65,6 +76,16 @@ export default function SessionInfo({ session }: SessionInfoProps) {
             <span style={{ color: 'var(--text-secondary)', fontWeight: '700' }}>SOURCE:</span>{' '}
             {isNoRace ? 'OPENF1 SCHEDULE FEED' : 'OPENF1 LIVE TELEMETRY ENGINE'}
           </p>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.5rem' }}>
+          <div style={{ padding: '0.65rem', borderRadius: '10px', border: '1px solid var(--border-light)', background: 'rgba(255,255,255,0.03)' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Race Phase</p>
+            <strong style={{ display: 'block', marginTop: '0.2rem', color: 'var(--accent-cyan)' }}>{isNoRace ? 'Pre-race' : 'On Track'}</strong>
+          </div>
+          <div style={{ padding: '0.65rem', borderRadius: '10px', border: '1px solid var(--border-light)', background: 'rgba(255,255,255,0.03)' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Venue</p>
+            <strong style={{ display: 'block', marginTop: '0.2rem', color: 'var(--text-primary)' }}>{session.circuit_short_name}</strong>
+          </div>
         </div>
       </div>
     </div>

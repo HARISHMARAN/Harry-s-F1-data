@@ -8,6 +8,7 @@ import SessionInfo from './components/SessionInfo';
 import MaxTracker from './components/MaxTracker';
 import AddonLibrary from './components/AddonLibrary';
 import PredictionStudio from './components/PredictionStudio';
+import TelemetryRibbon from './components/TelemetryRibbon';
 import TrackBackdrop from './components/TrackBackdrop';
 import DraggableWidget from './components/DraggableWidget';
 import ChatView from './components/chat/ChatView';
@@ -64,6 +65,7 @@ function App() {
             sessionName={DASHBOARD_TITLE} 
             isLive={viewMode === 'LIVE' && isLive} 
           />
+          <TelemetryRibbon session={session} viewMode={viewMode} live={viewMode === 'LIVE' && isLive} signalLabel={viewMode === 'LIVE' ? 'SIGNAL: LIVE PACKET' : 'SIGNAL: STABLE'} />
           
           {/* Mode Toggle Switch */}
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>

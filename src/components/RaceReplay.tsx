@@ -31,6 +31,7 @@ interface ReplayMarker {
   y: number;
   compound: string | null;
   drsUsed: boolean | null;
+  sectorPercent: number;
 }
 
 const TRACK_WIDTH = 860;
@@ -61,6 +62,136 @@ function getFlagTone(flag: string | null) {
     default:
       return 'var(--accent-blue)';
   }
+}
+
+function getTyreTone(compound: string | null) {
+  switch ((compound ?? '').toUpperCase()) {
+    case 'SOFT':
+      return '#ea3323';
+    case 'MEDIUM':
+      return '#f4b400';
+    case 'HARD':
+      return '#9ca3af';
+    case 'INTERMEDIATE':
+      return '#00d2be';
+    case 'WET':
+      return '#1d4ed8';
+    default:
+      return '#6b7280';
+  }
+}
+
+function getTyreLabel(compound: string | null) {
+  const label = (compound ?? 'UNKNOWN').toUpperCase();
+  if (label === 'INTERMEDIATE') return 'I';
+  if (label === 'WET') return 'W';
+  if (label === 'SOFT') return 'S';
+  if (label === 'MEDIUM') return 'M';
+  if (label === 'HARD') return 'H';
+  return label.slice(0, 1);
+}
+
+function TyreBadge({ compound }: { compound: string | null }) {
+  const tone = getTyreTone(compound);
+  return (
+    <span
+      style={{
+        minWidth: 32,
+        height: 22,
+        padding: '0 0.45rem',
+        borderRadius: 999,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        background: `${tone}22`,
+        border: `1px solid ${tone}66`,
+        color: tone,
+        fontSize: '0.66rem',
+        fontWeight: 900,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+      }}
+    >
+      <span
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: '999px',
+          background: tone,
+          boxShadow: `0 0 10px ${tone}99`,
+          flex: '0 0 auto',
+        }}
+      />
+      {getTyreLabel(compound)}
+    </span>
+  );
+}
+
+function DrsLight({ active }: { active: boolean | null }) {
+  const isOn = active === true;
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '0.2rem 0.45rem',
+        borderRadius: 999,
+        border: '1px solid var(--border-light)',
+        background: isOn ? 'rgba(0, 210, 190, 0.16)' : 'rgba(255,255,255,0.03)',
+        color: isOn ? '#00d2be' : 'var(--text-muted)',
+        fontSize: '0.65rem',
+        fontWeight: 900,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+      }}
+    >
+      <span
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: '999px',
+          background: isOn ? '#00d2be' : '#4b5563',
+          boxShadow: isOn ? '0 0 10px rgba(0, 210, 190, 0.95)' : 'none',
+        }}
+      />
+      DRS
+    </span>
+  );
+}
+
+function SectorBars({ progress }: { progress: number }) {
+  const clamped = Math.max(0, Math.min(1, progress));
+  const activeSector = clamped < 0.33 ? 1 : clamped < 0.66 ? 2 : 3;
+
+  return (
+    <div style={{ display: 'grid', gap: '0.25rem', minWidth: 132 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.25rem' }}>
+        {[1, 2, 3].map((sector) => (
+          <div
+            key={sector}
+            style={{
+              height: 6,
+              borderRadius: 999,
+              background:
+                sector < activeSector
+                  ? 'rgba(0,210,190,0.78)'
+                  : sector === activeSector
+                    ? 'linear-gradient(90deg, rgba(21,209,204,0.18), rgba(0,240,255,0.85))'
+                    : 'rgba(255,255,255,0.08)',
+              boxShadow: sector === activeSector ? '0 0 12px rgba(0,240,255,0.55)' : 'none',
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        <span>S1</span>
+        <span>S2</span>
+        <span>S3</span>
+      </div>
+    </div>
+  );
 }
 
 function groupByDriver<T extends { driver_number: number }>(rows: T[]) {
@@ -205,6 +336,7 @@ function buildReplayMarkers(
       y: markerPoint.y,
       compound: lapState.compound,
       drsUsed: lapState.drsUsed,
+      sectorPercent: lapState.lapFraction,
     });
   });
 
@@ -637,6 +769,14 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
             )}
           </div>
 
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', padding: '0 1rem 0.5rem', justifyContent: 'center' }}>
+            <TyreBadge compound="SOFT" />
+            <TyreBadge compound="MEDIUM" />
+            <TyreBadge compound="HARD" />
+            <DrsLight active={true} />
+            <DrsLight active={false} />
+          </div>
+
           <div className="replay-canvas" style={{ flex: 1, minHeight: 0, position: 'relative', background: 'transparent' }}>
             {!dataset && !loadingReplay && (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
@@ -666,6 +806,15 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                       fill={`#${marker.driver.team_colour}`}
                       stroke="rgba(0,0,0,0.5)"
                       strokeWidth="2"
+                    />
+                    <rect
+                      x={marker.x - 5}
+                      y={marker.y + 6}
+                      width={10}
+                      height={5}
+                      rx={2.5}
+                      fill={`#${marker.driver.team_colour}`}
+                      opacity={0.9}
                     />
                     <text
                       x={marker.x}
@@ -705,6 +854,9 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                   {formatReplayClock(replayMs)}
                 </span>
               </div>
+              <div style={{ display: 'flex', gap: '0.45rem', marginTop: '0.5rem', justifyContent: 'center' }}>
+                <SectorBars progress={replayDurationMs ? replayMs / replayDurationMs : 0} />
+              </div>
             </div>
           )}
         </div>
@@ -716,6 +868,13 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fade-in 0.35s ease-out' }}>
       <div className="glass-panel" style={{ padding: '1.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.9rem' }}>
+          <TyreBadge compound="SOFT" />
+          <TyreBadge compound="MEDIUM" />
+          <TyreBadge compound="HARD" />
+          <DrsLight active={true} />
+          <DrsLight active={false} />
+        </div>
         <div
           style={{
             display: 'grid',
@@ -861,6 +1020,15 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                       stroke="rgba(10, 10, 12, 0.95)"
                       strokeWidth={selectedDriverNumber === marker.driver.driver_number ? 4 : 2}
                     />
+                    <rect
+                      x={marker.x - 7}
+                      y={marker.y + 8}
+                      width={14}
+                      height={6}
+                      rx={3}
+                      fill={`#${marker.driver.team_colour}`}
+                      opacity={0.9}
+                    />
                     <text
                       x={marker.x}
                       y={marker.y - 18}
@@ -980,13 +1148,9 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                       P{focusedDriver.position ?? '--'} • Lap {focusedDriver.lapNumber || '--'} • {(focusedDriver.lapFraction * 100).toFixed(0)}% through lap
                     </span>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
-                      <span className="speed-chip active" style={{ fontSize: '0.7rem' }}>
-                        Tyre: {focusedDriver.compound ?? 'UNKNOWN'}
-                      </span>
-                      <span className="speed-chip" style={{ fontSize: '0.7rem' }}>
-                        DRS: {focusedDriver.drsUsed ? 'USED' : 'OFF'}
-                      </span>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem', alignItems: 'center' }}>
+                      <TyreBadge compound={focusedDriver.compound} />
+                      <DrsLight active={focusedDriver.drsUsed} />
                     </div>
                   </div>
                 </div>
@@ -1025,12 +1189,9 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                     <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
                       L{marker.lapNumber || 0}
                     </span>
-                    <span className="speed-chip" style={{ fontSize: '0.65rem', padding: '0.25rem 0.5rem' }}>
-                      {marker.compound ?? 'TYRE?'}
-                    </span>
-                    <span className="speed-chip" style={{ fontSize: '0.65rem', padding: '0.25rem 0.5rem' }}>
-                      {marker.drsUsed ? 'DRS' : 'NO DRS'}
-                    </span>
+                    <TyreBadge compound={marker.compound} />
+                    <DrsLight active={marker.drsUsed} />
+                    <SectorBars progress={marker.sectorPercent} />
                   </button>
                 ))}
               </div>

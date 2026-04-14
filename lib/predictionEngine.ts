@@ -109,7 +109,7 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
     ? seasonRaces.find((race) => normalize(race.raceName).includes(normalize(nextSession.session_name)))
     : null;
 
-  const selectedRace = searchTerm ? scheduleCandidates[0] ?? null : nextSessionCandidate ?? scheduleCandidates[0] ?? null;
+  const selectedRace = searchTerm ? scheduleCandidates[0] ?? null : nextSessionCandidate;
   const matchedRaceName =
     selectedRace?.raceName ??
     openF1Schedule?.session_name ??

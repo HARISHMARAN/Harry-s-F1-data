@@ -44,6 +44,7 @@ export default function PredictionStudio() {
   const [bootstrapping, setBootstrapping] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nextLabel, setNextLabel] = useState('');
+  const [debouncedForm, setDebouncedForm] = useState(form);
 
   const sourceLabel = useMemo(() => getPredictionSourceLabel(), []);
 
@@ -75,7 +76,17 @@ export default function PredictionStudio() {
   }, []);
 
   useEffect(() => {
-    if (!form.grandPrix || bootstrapping) return;
+    const handle = window.setTimeout(() => {
+      setDebouncedForm(form);
+    }, 250);
+
+    return () => {
+      window.clearTimeout(handle);
+    };
+  }, [form]);
+
+  useEffect(() => {
+    if (!debouncedForm.grandPrix || bootstrapping) return;
 
     let cancelled = false;
 
@@ -84,8 +95,8 @@ export default function PredictionStudio() {
         setLoading(true);
         setError(null);
         const data = await fetchPredictionForecast({
-          grandPrix: form.grandPrix,
-          year: form.year ? Number(form.year) : undefined,
+          grandPrix: debouncedForm.grandPrix,
+          year: debouncedForm.year ? Number(debouncedForm.year) : undefined,
         });
         if (!cancelled) {
           setForecast(data);
@@ -107,7 +118,7 @@ export default function PredictionStudio() {
     return () => {
       cancelled = true;
     };
-  }, [form.grandPrix, form.year, bootstrapping]);
+  }, [debouncedForm, bootstrapping]);
 
   return (
     <div className="glass-panel" style={{ padding: '1.5rem', display: 'grid', gap: '1.25rem' }}>

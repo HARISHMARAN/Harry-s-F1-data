@@ -15,7 +15,7 @@ interface AddonDefinition {
   stack: string[];
   cmd: string;
   embedded?: boolean;
-  action?: 'REPLAY' | 'CHAT' | 'PREDICTIONS';
+  action?: 'REPLAY' | 'CHAT';
   actionLabel?: string;
 }
 
