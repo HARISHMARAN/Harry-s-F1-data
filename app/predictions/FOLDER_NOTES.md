@@ -1,6 +1,7 @@
 # Folder Notes: app/predictions
+
 ## Purpose
-Web page for the local 2026 F1 predictions add-on.
+Legacy route that redirects into the dashboard-native Prediction Studio.
 
 ## Key Files
 - `page.tsx`
@@ -10,6 +11,8 @@ Web page for the local 2026 F1 predictions add-on.
 - 2026-04-14: Added client-side filters, card view, and compare mode.
 - 2026-04-14: Added race selector and compact model comparison table.
 - 2026-04-14: Simplified the page to a minimal click-to-view prediction panel.
+- 2026-04-14: Switched the page to live API loading with Supabase Edge Function support and local API fallback.
+- 2026-04-14: Redirected the route into the dashboard-native Prediction Studio.
 
 ## How It Works (High-Level)
-This page is the browser-facing surface for the `addons/2026_f1_predictions` scripts and can later be wired to live execution if needed.
+This route now forwards to `/?mode=predictions` so the feature lives inside the main dashboard instead of an add-on page.

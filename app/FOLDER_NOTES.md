@@ -14,6 +14,7 @@ Next.js app router pages, layouts, and API routes.
 - 2026-04-12: UI state updates for live/no-live display.
 - 2026-04-14: Added a dashboard page for the 2026 F1 Predictions add-on.
 - 2026-04-14: Predictions now render entirely in the web UI without a backend endpoint.
+- 2026-04-14: Added a dashboard-native Prediction Studio and redirected the legacy predictions route into it.
 
 ## How It Works (High-Level)
 This folder participates in the overall F1 Pitwall system. See `NOTES/CHANGES_2026-04-12.txt` for the latest cross-cutting changes.

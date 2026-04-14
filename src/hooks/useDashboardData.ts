@@ -4,7 +4,7 @@ import { fetchHistoricalData, fetchSeasonRaces } from '../services/jolpica';
 import { POLLING_INTERVAL, DEFAULT_YEAR, FALLBACK_YEAR } from '../constants';
 import type { DashboardSession, DriverPosition, MaxStats, SeasonRace } from '../types/f1';
 
-type ViewMode = 'LIVE' | 'HISTORICAL' | 'REPLAY' | 'ADDONS' | 'CHAT';
+type ViewMode = 'LIVE' | 'HISTORICAL' | 'REPLAY' | 'ADDONS' | 'CHAT' | 'PREDICTIONS';
 
 interface DashboardState {
   viewMode: ViewMode;

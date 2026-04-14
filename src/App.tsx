@@ -7,6 +7,7 @@ import LiveTiming from './components/LiveTiming';
 import SessionInfo from './components/SessionInfo';
 import MaxTracker from './components/MaxTracker';
 import AddonLibrary from './components/AddonLibrary';
+import PredictionStudio from './components/PredictionStudio';
 import TrackBackdrop from './components/TrackBackdrop';
 import DraggableWidget from './components/DraggableWidget';
 import ChatView from './components/chat/ChatView';
@@ -43,6 +44,7 @@ function App() {
     if (mode === 'historical') dispatch({ type: 'SET_VIEW_MODE', payload: 'HISTORICAL' });
     if (mode === 'addons') dispatch({ type: 'SET_VIEW_MODE', payload: 'ADDONS' });
     if (mode === 'chat') dispatch({ type: 'SET_VIEW_MODE', payload: 'CHAT' });
+    if (mode === 'predictions') dispatch({ type: 'SET_VIEW_MODE', payload: 'PREDICTIONS' });
   }, [searchParams, dispatch]);
 
   return (
@@ -99,6 +101,13 @@ function App() {
               >
                 CHATBOT
               </button>
+              <button 
+                className={`toggle-btn ${viewMode === 'PREDICTIONS' ? 'active' : ''}`}
+                style={{ backgroundColor: viewMode === 'PREDICTIONS' ? 'rgba(0, 147, 204, 0.16)' : 'transparent', boxShadow: viewMode === 'PREDICTIONS' ? '0 0 10px rgba(0, 147, 204, 0.25)' : 'none' }}
+                onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'PREDICTIONS' })}
+              >
+                PREDICTIONS
+              </button>
             </div>
           </div>
 
@@ -141,10 +150,11 @@ function App() {
           <AddonLibrary 
             onOpenReplay={() => router.push('/replay')}
             onOpenChat={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'CHAT' })}
-            onOpenPredictions={() => router.push('/predictions')}
           />
         ) : viewMode === 'CHAT' ? (
           <ChatView />
+        ) : viewMode === 'PREDICTIONS' ? (
+          <PredictionStudio />
         ) : loading ? (
           <div className="dashboard-grid">
             <div className="dashboard-column">
