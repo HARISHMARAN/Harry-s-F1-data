@@ -43,6 +43,7 @@ interface ReplayMarker {
 const TRACK_WIDTH = 860;
 const TRACK_HEIGHT = 560;
 const REPLAY_SPEEDS = [0.5, 1, 2, 4];
+const START_SEQUENCE_MS = 5000;
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
@@ -68,6 +69,12 @@ function formatLapDuration(seconds: number | null) {
   const millis = remaining % 1000;
 
   return `${minutes}:${secs.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}`;
+}
+
+function isSafetyCarMessage(message: ReplayRaceControlMessage | null) {
+  if (!message) return false;
+  const text = `${message.flag ?? ''} ${message.category ?? ''} ${message.message ?? ''}`.toUpperCase();
+  return text.includes('SAFETY CAR') || text.includes('VSC') || text.includes('VIRTUAL SAFETY CAR') || text.includes('SC DEPLOYED');
 }
 
 function getFlagTone(flag: string | null) {
@@ -927,13 +934,15 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
     [dataset],
   );
   const trackPath = useMemo(() => buildTrackPath(normalizedTrack), [normalizedTrack]);
-  const currentReplayTime = dataset ? Date.parse(dataset.start_time) + replayMs : 0;
+  const motionReplayMs = Math.max(0, replayMs - START_SEQUENCE_MS);
+  const controlReplayTime = dataset ? Date.parse(dataset.start_time) + replayMs : 0;
+  const currentReplayTime = dataset ? Date.parse(dataset.start_time) + motionReplayMs : 0;
   const markers = useMemo(
     () => (dataset ? buildReplayMarkers(dataset, normalizedTrack, currentReplayTime) : []),
     [dataset, normalizedTrack, currentReplayTime],
   );
   const currentRaceControl = dataset
-    ? getLatestRaceControlMessage(dataset.race_control, currentReplayTime)
+    ? getLatestRaceControlMessage(dataset.race_control, controlReplayTime)
     : null;
   const currentLap = markers.reduce((maxLap, marker) => Math.max(maxLap, marker.lapNumber), 0);
   const focusedDriver =
@@ -952,6 +961,9 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
       return Math.min(...sectorValues);
     }) as [number | null, number | null, number | null];
   }, [markers]);
+  const isSafetyCarActive = isSafetyCarMessage(currentRaceControl);
+  const selectedDriverTeam = focusedDriver?.driver.team_name ?? '';
+  const isFerrariSelected = /ferrari/i.test(selectedDriverTeam);
 
   useEffect(() => {
     if (!dataset || !isPlaying) {
@@ -1010,7 +1022,19 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
 
     return (
       <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
-        <div className="replay-stage" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+        <div
+          className="replay-stage"
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            position: 'relative',
+            background: isFerrariSelected
+              ? 'linear-gradient(180deg, rgba(232, 0, 45, 0.14), rgba(5, 5, 8, 0.18))'
+              : undefined,
+          }}
+        >
           <DrsZoneRail zones={dataset?.drs_zones ?? []} currentFraction={focusedDriver?.lapFraction ?? 0} />
           <div style={{ position: 'absolute', top: '64px', left: '14px', zIndex: 5 }}>
             <StartLightStrip replayMs={replayMs} />
@@ -1080,34 +1104,63 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                 <path d={trackPath} fill="none" stroke="url(#trackGlow)" strokeWidth="4" strokeLinecap="round" />
                 {markers.map((marker) => (
                   <g key={marker.driver.driver_number}>
+                    {marker.driver.driver_number === fastestLapMarker?.driver.driver_number && (
+                      <circle
+                        cx={marker.x}
+                        cy={marker.y}
+                        r={selectedDriverNumber === marker.driver.driver_number ? 13 : 10}
+                        fill="none"
+                        stroke="rgba(181, 109, 255, 0.8)"
+                        strokeWidth="1.6"
+                        strokeDasharray="4 3"
+                      />
+                    )}
                     <circle
                       cx={marker.x}
                       cy={marker.y}
                       r={selectedDriverNumber === marker.driver.driver_number ? 8 : 5.5}
                       fill={`#${marker.driver.team_colour}`}
-                      stroke="rgba(0,0,0,0.5)"
+                      stroke={marker.driver.driver_number === fastestLapMarker?.driver.driver_number ? '#b56dff' : 'rgba(0,0,0,0.5)'}
                       strokeWidth="1.5"
-                    />
-                    <rect
-                      x={marker.x - 3.5}
-                      y={marker.y + 4.5}
-                      width={7}
-                      height={3.5}
-                      rx={1.75}
-                      fill={`#${marker.driver.team_colour}`}
-                      opacity={0.9}
+                      filter={marker.driver.driver_number === fastestLapMarker?.driver.driver_number ? 'drop-shadow(0 0 7px rgba(181, 109, 255, 0.95))' : undefined}
                     />
                     <text
                       x={marker.x}
                       y={marker.y - 14}
                       textAnchor="middle"
-                      fill="var(--text-primary)"
-                      style={{ fontSize: 9, fontWeight: 700 }}
+                      fill={marker.driver.driver_number === fastestLapMarker?.driver.driver_number ? '#e7ccff' : 'var(--text-primary)'}
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 700,
+                        textShadow: marker.driver.driver_number === fastestLapMarker?.driver.driver_number ? '0 0 10px rgba(181, 109, 255, 0.95)' : 'none',
+                      }}
                     >
                       {marker.driver.name_acronym}
                     </text>
                   </g>
                 ))}
+                {isSafetyCarActive && focusedDriver && (
+                  <g>
+                    <circle
+                      cx={focusedDriver.x}
+                      cy={focusedDriver.y - 18}
+                      r={7}
+                      fill="#f4b400"
+                      stroke="#fff6bf"
+                      strokeWidth="1.4"
+                      filter="drop-shadow(0 0 7px rgba(244, 180, 0, 0.85))"
+                    />
+                    <text
+                      x={focusedDriver.x}
+                      y={focusedDriver.y - 21}
+                      textAnchor="middle"
+                      fill="#0a0a0c"
+                      style={{ fontSize: 7, fontWeight: 900, letterSpacing: '0.08em' }}
+                    >
+                      SC
+                    </text>
+                  </g>
+                )}
               </svg>
             )}
           </div>
@@ -1267,7 +1320,14 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                   : undefined,
           }}
         >
-        <div className="glass-panel replay-stage">
+        <div
+          className="glass-panel replay-stage"
+          style={{
+            background: isFerrariSelected
+              ? 'linear-gradient(180deg, rgba(232, 0, 45, 0.12), rgba(18, 5, 8, 0.92))'
+              : undefined,
+          }}
+        >
             <DrsZoneRail zones={dataset.drs_zones ?? []} currentFraction={focusedDriver?.lapFraction ?? 0} />
             <div style={{ position: 'absolute', top: '64px', left: '14px', zIndex: 5 }}>
               <StartLightStrip replayMs={replayMs} />
@@ -1286,6 +1346,11 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                 {demoMode && (
                   <span className="speed-chip active" style={{ fontSize: '0.65rem' }}>
                     DEMO MODE
+                  </span>
+                )}
+                {isSafetyCarActive && (
+                  <span className="speed-chip active" style={{ fontSize: '0.65rem', background: 'rgba(244, 180, 0, 0.18)', borderColor: 'rgba(244, 180, 0, 0.4)', color: '#ffe8a3' }}>
+                    SAFETY CAR
                   </span>
                 )}
                 <div
@@ -1347,15 +1412,6 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                       strokeWidth={selectedDriverNumber === marker.driver.driver_number ? 2.5 : 1.5}
                       filter={marker.driver.driver_number === fastestLapMarker?.driver.driver_number ? 'drop-shadow(0 0 7px rgba(181, 109, 255, 0.95))' : undefined}
                     />
-                    <rect
-                      x={marker.x - 4.5}
-                      y={marker.y + 5.5}
-                      width={9}
-                      height={4}
-                      rx={2}
-                      fill={`#${marker.driver.team_colour}`}
-                      opacity={0.9}
-                    />
                     <text
                       x={marker.x}
                       y={marker.y - 18}
@@ -1372,6 +1428,28 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                     </text>
                   </g>
                 ))}
+                {isSafetyCarActive && focusedDriver && (
+                  <g>
+                    <circle
+                      cx={focusedDriver.x}
+                      cy={focusedDriver.y - 18}
+                      r={8}
+                      fill="#f4b400"
+                      stroke="#fff6bf"
+                      strokeWidth="1.4"
+                      filter="drop-shadow(0 0 7px rgba(244, 180, 0, 0.85))"
+                    />
+                    <text
+                      x={focusedDriver.x}
+                      y={focusedDriver.y - 21}
+                      textAnchor="middle"
+                      fill="#0a0a0c"
+                      style={{ fontSize: 7, fontWeight: 900, letterSpacing: '0.08em' }}
+                    >
+                      SC
+                    </text>
+                  </g>
+                )}
               </svg>
             </div>
 
@@ -1428,8 +1506,8 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
               {currentRaceControl ? (
                 <div
                   style={{
-                    background: 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${getFlagTone(currentRaceControl.flag)}`,
+                    background: isSafetyCarActive ? 'rgba(244, 180, 0, 0.09)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${isSafetyCarActive ? '#f4b400' : getFlagTone(currentRaceControl.flag)}`,
                     borderRadius: '14px',
                     padding: '1rem',
                   }}
@@ -1438,6 +1516,11 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                     <span style={{ color: getFlagTone(currentRaceControl.flag), fontWeight: 800, letterSpacing: '0.08em' }}>
                       {currentRaceControl.flag ?? currentRaceControl.category}
                     </span>
+                    {isSafetyCarActive && (
+                      <span style={{ color: '#f4b400', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                        Safety Car Active
+                      </span>
+                    )}
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                       {new Date(currentRaceControl.date).toLocaleTimeString([], {
                         hour: '2-digit',
@@ -1459,7 +1542,14 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                 <h2 className="panel-title">Focused Driver</h2>
               </div>
               {focusedDriver ? (
-                <div className="driver-focus-card" style={{ alignItems: 'start' }}>
+                <div
+                  className="driver-focus-card"
+                  style={{
+                    alignItems: 'start',
+                    background: isFerrariSelected ? 'linear-gradient(180deg, rgba(232, 0, 45, 0.14), rgba(255,255,255,0.03))' : undefined,
+                    borderColor: isFerrariSelected ? 'rgba(232, 0, 45, 0.4)' : undefined,
+                  }}
+                >
                   <div
                     style={{
                       width: 52,
@@ -1475,7 +1565,15 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                     {focusedDriver.driver.name_acronym}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', flex: 1 }}>
-                    <strong style={{ fontSize: '1.05rem' }}>{focusedDriver.driver.full_name}</strong>
+                    <strong
+                      style={{
+                        fontSize: '1.05rem',
+                        color: isFerrariSelected ? '#ffd4dc' : 'inherit',
+                        textShadow: isFerrariSelected ? '0 0 8px rgba(232, 0, 45, 0.55)' : 'none',
+                      }}
+                    >
+                      {focusedDriver.driver.full_name}
+                    </strong>
                     <span style={{ color: 'var(--text-secondary)' }}>{focusedDriver.driver.team_name}</span>
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                       P{focusedDriver.position ?? '--'} • Lap {focusedDriver.lapNumber || '--'} • {(focusedDriver.lapFraction * 100).toFixed(0)}% through lap
