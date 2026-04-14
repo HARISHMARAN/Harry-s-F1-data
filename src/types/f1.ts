@@ -78,6 +78,9 @@ export interface ReplayLap {
   lap_number: number;
   date_start: string;
   lap_duration: number | null;
+  duration_sector_1?: number | null;
+  duration_sector_2?: number | null;
+  duration_sector_3?: number | null;
   is_pit_out_lap: boolean;
   compound?: string | null;
   drs_used?: boolean | null;

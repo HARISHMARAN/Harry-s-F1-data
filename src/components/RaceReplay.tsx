@@ -34,6 +34,8 @@ interface ReplayMarker {
   drsUsed: boolean | null;
   drsActiveNow: boolean;
   sectorPercent: number;
+  lapDuration: number | null;
+  sectorTimes: [number | null, number | null, number | null];
 }
 
 const TRACK_WIDTH = 860;
@@ -50,6 +52,20 @@ function formatReplayClock(milliseconds: number) {
   const seconds = totalSeconds % 60;
 
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function formatLapDuration(seconds: number | null) {
+  if (seconds === null || !Number.isFinite(seconds)) {
+    return '--.--';
+  }
+
+  const totalMilliseconds = Math.max(Math.round(seconds * 1000), 0);
+  const minutes = Math.floor(totalMilliseconds / 60000);
+  const remaining = totalMilliseconds - minutes * 60000;
+  const secs = Math.floor(remaining / 1000);
+  const millis = remaining % 1000;
+
+  return `${minutes}:${secs.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}`;
 }
 
 function getFlagTone(flag: string | null) {
@@ -193,6 +209,40 @@ function SectorBars({ progress }: { progress: number }) {
         <span>S3</span>
       </div>
     </div>
+  );
+}
+
+function SectorIcon({
+  index,
+  value,
+  best,
+}: {
+  index: 1 | 2 | 3;
+  value: number | null;
+  best: boolean;
+}) {
+  return (
+    <span
+      title={value !== null ? `Sector ${index}: ${formatLapDuration(value)}` : `Sector ${index}: no data`}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 24,
+        height: 24,
+        borderRadius: '999px',
+        border: `1px solid ${best ? '#b56dff' : 'rgba(255,255,255,0.14)'}`,
+        background: best ? 'rgba(181, 109, 255, 0.18)' : 'rgba(255,255,255,0.04)',
+        color: best ? '#d8b5ff' : 'var(--text-muted)',
+        boxShadow: best ? '0 0 14px rgba(181, 109, 255, 0.75)' : 'none',
+        fontSize: '0.64rem',
+        fontWeight: 900,
+        letterSpacing: '0.06em',
+        textTransform: 'uppercase',
+      }}
+    >
+      S{index}
+    </span>
   );
 }
 
@@ -392,13 +442,13 @@ function resolveTrackPoints(dataset: ReplayDataset | null): ReplayTrackPoint[] {
 
 function getLapState(laps: ReplayLap[], replayTime: number) {
   if (laps.length === 0) {
-    return { lapNumber: 0, lapFraction: 0, globalProgress: 0, compound: null, drsUsed: null };
+    return { lapNumber: 0, lapFraction: 0, globalProgress: 0, compound: null, drsUsed: null, lapRow: null as ReplayLap | null };
   }
 
   const currentLapIndex = findLatestIndexByTime(laps, replayTime, (lap) => Date.parse(lap.date_start));
 
   if (currentLapIndex === -1) {
-    return { lapNumber: 0, lapFraction: 0, globalProgress: 0, compound: null, drsUsed: null };
+    return { lapNumber: 0, lapFraction: 0, globalProgress: 0, compound: null, drsUsed: null, lapRow: null as ReplayLap | null };
   }
 
   const currentLap = laps[currentLapIndex];
@@ -421,6 +471,7 @@ function getLapState(laps: ReplayLap[], replayTime: number) {
     globalProgress: currentLap.lap_number - 1 + lapFraction,
     compound: currentLap.compound ?? null,
     drsUsed: currentLap.drs_used ?? null,
+    lapRow: currentLap,
   };
 }
 
@@ -474,6 +525,12 @@ function buildReplayMarkers(
       drsUsed: lapState.drsUsed,
       drsActiveNow,
       sectorPercent: lapState.lapFraction,
+      lapDuration: lapState.lapRow?.lap_duration ?? null,
+      sectorTimes: [
+        lapState.lapRow?.duration_sector_1 ?? null,
+        lapState.lapRow?.duration_sector_2 ?? null,
+        lapState.lapRow?.duration_sector_3 ?? null,
+      ],
     });
   });
 
@@ -802,16 +859,36 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
   const replayDurationMs = dataset
     ? Math.max(Date.parse(dataset.end_time) - Date.parse(dataset.start_time), 1000)
     : 1000;
-  const normalizedTrack = dataset ? normalizeTrack(resolveTrackPoints(dataset)) : [];
-  const trackPath = buildTrackPath(normalizedTrack);
+  const normalizedTrack = useMemo(
+    () => (dataset ? normalizeTrack(resolveTrackPoints(dataset)) : []),
+    [dataset],
+  );
+  const trackPath = useMemo(() => buildTrackPath(normalizedTrack), [normalizedTrack]);
   const currentReplayTime = dataset ? Date.parse(dataset.start_time) + replayMs : 0;
-  const markers = dataset ? buildReplayMarkers(dataset, normalizedTrack, currentReplayTime) : [];
+  const markers = useMemo(
+    () => (dataset ? buildReplayMarkers(dataset, normalizedTrack, currentReplayTime) : []),
+    [dataset, normalizedTrack, currentReplayTime],
+  );
   const currentRaceControl = dataset
     ? getLatestRaceControlMessage(dataset.race_control, currentReplayTime)
     : null;
   const currentLap = markers.reduce((maxLap, marker) => Math.max(maxLap, marker.lapNumber), 0);
   const focusedDriver =
     markers.find((marker) => marker.driver.driver_number === selectedDriverNumber) ?? markers[0];
+  const fastestLapMarker = useMemo(
+    () =>
+      markers.filter((marker) => marker.lapDuration !== null).sort((left, right) => (left.lapDuration ?? Infinity) - (right.lapDuration ?? Infinity))[0] ?? null,
+    [markers],
+  );
+  const bestSectorTimes = useMemo(() => {
+    return [0, 1, 2].map((sectorIndex) => {
+      const sectorValues = markers
+        .map((marker) => marker.sectorTimes[sectorIndex])
+        .filter((value): value is number => value !== null && Number.isFinite(value));
+      if (!sectorValues.length) return null;
+      return Math.min(...sectorValues);
+    }) as [number | null, number | null, number | null];
+  }, [markers]);
 
   useEffect(() => {
     if (!dataset || !isPlaying) {
@@ -1151,13 +1228,25 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
 
                 {markers.map((marker) => (
                   <g key={marker.driver.driver_number}>
+                    {marker.driver.driver_number === fastestLapMarker?.driver.driver_number && (
+                      <circle
+                        cx={marker.x}
+                        cy={marker.y}
+                        r={selectedDriverNumber === marker.driver.driver_number ? 13 : 10}
+                        fill="none"
+                        stroke="rgba(181, 109, 255, 0.8)"
+                        strokeWidth="1.6"
+                        strokeDasharray="4 3"
+                      />
+                    )}
                     <circle
                       cx={marker.x}
                       cy={marker.y}
                       r={selectedDriverNumber === marker.driver.driver_number ? 9 : 6.5}
                       fill={`#${marker.driver.team_colour}`}
-                      stroke="rgba(10, 10, 12, 0.95)"
+                      stroke={marker.driver.driver_number === fastestLapMarker?.driver.driver_number ? '#b56dff' : 'rgba(10, 10, 12, 0.95)'}
                       strokeWidth={selectedDriverNumber === marker.driver.driver_number ? 2.5 : 1.5}
+                      filter={marker.driver.driver_number === fastestLapMarker?.driver.driver_number ? 'drop-shadow(0 0 7px rgba(181, 109, 255, 0.95))' : undefined}
                     />
                     <rect
                       x={marker.x - 4.5}
@@ -1172,8 +1261,13 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                       x={marker.x}
                       y={marker.y - 18}
                       textAnchor="middle"
-                      fill="var(--text-primary)"
-                      style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em' }}
+                      fill={marker.driver.driver_number === fastestLapMarker?.driver.driver_number ? '#e7ccff' : 'var(--text-primary)'}
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: '0.08em',
+                        textShadow: marker.driver.driver_number === fastestLapMarker?.driver.driver_number ? '0 0 10px rgba(181, 109, 255, 0.95)' : 'none',
+                      }}
                     >
                       {marker.driver.name_acronym}
                     </text>
@@ -1287,9 +1381,17 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                       P{focusedDriver.position ?? '--'} • Lap {focusedDriver.lapNumber || '--'} • {(focusedDriver.lapFraction * 100).toFixed(0)}% through lap
                     </span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                      Fastest lap: {fastestLapMarker ? `${fastestLapMarker.driver.name_acronym} ${formatLapDuration(fastestLapMarker.lapDuration)}` : '--'}
+                    </span>
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem', alignItems: 'center' }}>
                       <TyreBadge compound={focusedDriver.compound} />
                       <DrsLight active={focusedDriver.drsActiveNow} />
+                      <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                        <SectorIcon index={1} value={focusedDriver.sectorTimes[0]} best={bestSectorTimes[0] !== null && focusedDriver.sectorTimes[0] === bestSectorTimes[0]} />
+                        <SectorIcon index={2} value={focusedDriver.sectorTimes[1]} best={bestSectorTimes[1] !== null && focusedDriver.sectorTimes[1] === bestSectorTimes[1]} />
+                        <SectorIcon index={3} value={focusedDriver.sectorTimes[2]} best={bestSectorTimes[2] !== null && focusedDriver.sectorTimes[2] === bestSectorTimes[2]} />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1310,7 +1412,12 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                     type="button"
                     className={`replay-row ${selectedDriverNumber === marker.driver.driver_number ? 'selected' : ''}`}
                     onClick={() => setSelectedDriverNumber(marker.driver.driver_number)}
-                    style={{ alignItems: 'center', gap: '0.6rem' }}
+                    style={{
+                      alignItems: 'center',
+                      gap: '0.6rem',
+                      borderColor: marker.driver.driver_number === fastestLapMarker?.driver.driver_number ? 'rgba(181, 109, 255, 0.3)' : undefined,
+                      boxShadow: marker.driver.driver_number === fastestLapMarker?.driver.driver_number ? '0 0 16px rgba(181, 109, 255, 0.16)' : undefined,
+                    }}
                   >
                     <span style={{ width: 28, fontWeight: 800, color: 'var(--text-primary)' }}>
                       {marker.position ?? '--'}
@@ -1324,12 +1431,31 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                         boxShadow: `0 0 12px #${marker.driver.team_colour}66`,
                       }}
                     />
-                    <span style={{ flex: 1, textAlign: 'left' }}>{marker.driver.full_name}</span>
+                    <span
+                      style={{
+                        flex: 1,
+                        textAlign: 'left',
+                        color: marker.driver.driver_number === fastestLapMarker?.driver.driver_number ? '#e7ccff' : 'inherit',
+                        textShadow: marker.driver.driver_number === fastestLapMarker?.driver.driver_number ? '0 0 8px rgba(181, 109, 255, 0.9)' : 'none',
+                      }}
+                    >
+                      {marker.driver.full_name}
+                      {marker.driver.driver_number === fastestLapMarker?.driver.driver_number && (
+                        <span style={{ marginLeft: '0.4rem', color: '#c084fc', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                          Fastest
+                        </span>
+                      )}
+                    </span>
                     <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
                       L{marker.lapNumber || 0}
                     </span>
                     <TyreBadge compound={marker.compound} />
                     <DrsLight active={marker.drsActiveNow} />
+                    <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                      <SectorIcon index={1} value={marker.sectorTimes[0]} best={bestSectorTimes[0] !== null && marker.sectorTimes[0] === bestSectorTimes[0]} />
+                      <SectorIcon index={2} value={marker.sectorTimes[1]} best={bestSectorTimes[1] !== null && marker.sectorTimes[1] === bestSectorTimes[1]} />
+                      <SectorIcon index={3} value={marker.sectorTimes[2]} best={bestSectorTimes[2] !== null && marker.sectorTimes[2] === bestSectorTimes[2]} />
+                    </div>
                     <SectorBars progress={marker.sectorPercent} />
                   </button>
                 ))}
