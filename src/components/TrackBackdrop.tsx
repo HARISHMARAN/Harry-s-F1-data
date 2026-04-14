@@ -9,6 +9,8 @@ export default function TrackBackdrop({ session }: TrackBackdropProps) {
   const seed = `${session?.circuit_short_name ?? session?.location ?? 'circuit'}-${session?.session_key ?? ''}`;
   const points = normalizeTrack(getTrackPointsForCircuit(seed));
   const trackPath = buildTrackPath(points);
+  const circuitLabel = session?.circuit_short_name ?? session?.location ?? 'Circuit Layout';
+  const raceLabel = session?.session_name ?? 'Race Context';
   const sectors = points.length >= 3
     ? [points.slice(0, Math.floor(points.length / 3)), points.slice(Math.floor(points.length / 3), Math.floor((points.length * 2) / 3)), points.slice(Math.floor((points.length * 2) / 3))]
     : [];
@@ -58,7 +60,7 @@ export default function TrackBackdrop({ session }: TrackBackdropProps) {
           textTransform: 'uppercase',
         }}
       >
-        {session?.location ? `${session.location} Circuit` : 'Circuit Layout'}
+        {session?.location ? `${session.location} Circuit` : circuitLabel}
       </div>
       <div
         style={{
@@ -75,7 +77,7 @@ export default function TrackBackdrop({ session }: TrackBackdropProps) {
           textTransform: 'uppercase',
         }}
       >
-        Sectors / Grid / Pit Lane
+        {raceLabel} / Sectors / Grid / Pit Lane
       </div>
     </div>
   );

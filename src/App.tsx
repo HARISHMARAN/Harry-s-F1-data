@@ -37,6 +37,7 @@ function App() {
   } = state;
   const isLive = liveStatus === 'LIVE';
   const nextSchedule = nextSession ?? (session?.status === 'NO_RACE' ? session : null);
+  const backdropSession = session?.status === 'NO_RACE' ? nextSchedule : session;
 
   useEffect(() => {
     const mode = searchParams.get('mode');
@@ -54,7 +55,7 @@ function App() {
       {/* BACKGROUND LAYER: TRACK MAP (FIXED) - Only show when NOT in ADDONS or separate REPLAY mode */}
       {(viewMode === 'LIVE' || viewMode === 'HISTORICAL') && !loading && !errorMsg && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1 }}>
-          <TrackBackdrop session={session} />
+          <TrackBackdrop session={backdropSession} />
         </div>
       )}
 

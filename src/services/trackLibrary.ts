@@ -18,6 +18,7 @@ import marinaBaySvg from '../assets/tracks/marina-bay.svg?raw';
 import yasMarinaSvg from '../assets/tracks/yas-marina.svg?raw';
 import hermanosRodriguezSvg from '../assets/tracks/hermanos-rodriguez.svg?raw';
 import bakuSvg from '../assets/tracks/baku.svg?raw';
+import jeddahSvg from '../assets/tracks/jeddah.svg?raw';
 
 const TRACK_SVGS: Record<string, string> = {
   monaco: monacoSvg,
@@ -40,6 +41,7 @@ const TRACK_SVGS: Record<string, string> = {
   yasMarina: yasMarinaSvg,
   hermanosRodriguez: hermanosRodriguezSvg,
   baku: bakuSvg,
+  jeddah: jeddahSvg,
 };
 
 function normalizeKey(value: string) {
@@ -83,6 +85,7 @@ export function getTrackSvgForCircuit(value: string | undefined | null) {
   if (key.includes('yas marina') || key.includes('abu dhabi')) return TRACK_SVGS.yasMarina;
   if (key.includes('hermanos rodriguez') || key.includes('mexico')) return TRACK_SVGS.hermanosRodriguez;
   if (key.includes('baku') || key.includes('azerbaijan')) return TRACK_SVGS.baku;
+  if (key.includes('jeddah') || key.includes('saudi') || key.includes('qiddiya')) return TRACK_SVGS.jeddah;
 
   return null;
 }
