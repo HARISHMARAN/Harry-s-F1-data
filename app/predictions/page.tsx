@@ -159,7 +159,7 @@ export default function PredictionsPage() {
     const forecasts = predictionScripts.filter((script) => script.category === "Forecast").length;
     const analysis = predictionScripts.filter((script) => script.category === "Analysis").length;
     return { total: predictionScripts.length, forecasts, analysis, races: raceOptions.length };
-  }, []);
+  }, [raceOptions.length]);
 
   return (
     <main

@@ -1,18 +1,18 @@
 # Core
-fastapi==0.115.6
-uvicorn[standard]==0.43.0
+fastapi==0.135.3
+uvicorn[standard]==0.44.0
 pydantic==2.12.5
 pydantic-settings==2.13.1
 
 # OpenAI Agents SDK
-openai-agents==0.13.4
+openai-agents==0.13.6
 
 # Database
 asyncpg==0.31.0
 pgvector==0.4.2
 
 # Security / validation
-sqlglot==30.2.1
+sqlglot==30.4.2
 
 # Rate limiting
 slowapi==0.1.9
@@ -21,5 +21,5 @@ slowapi==0.1.9
 httpx==0.28.1
 
 # Utilities
-python-dotenv==1.0.1
-python-multipart==0.0.22
+python-dotenv==1.2.2
+python-multipart==0.0.26
