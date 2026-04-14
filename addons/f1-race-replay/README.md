@@ -115,6 +115,12 @@ To get started with this project locally, you can follow these steps:
 4. **Run the Application:**
     You can now run the application using the instructions in the Usage section below.
 
+## Troubleshooting
+If the pull data process fails, run:
+```bash
+pip install --upgrade fastf1
+```
+
 ## Usage
 
 **DEFAULT GUI MENU:** To use the new GUI menu system, you can simply run:

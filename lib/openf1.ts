@@ -78,13 +78,31 @@ function buildUrl(path: string, params?: Record<string, string | number | boolea
   return url.toString();
 }
 
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 1000;
+
 async function fetchOpenF1<T>(path: string, params?: Record<string, string | number | boolean | undefined>) {
   const url = buildUrl(path, params);
-  const response = await fetch(url, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`OpenF1 request failed (${response.status}): ${url}`);
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const response = await fetch(url, { cache: "no-store" });
+
+    if (response.ok) {
+      return response.json() as Promise<T>;
+    }
+
+    const retryable = response.status === 429 || response.status >= 500;
+    if (!retryable || attempt === MAX_RETRIES) {
+      throw new Error(`OpenF1 request failed (${response.status}): ${url}`);
+    }
+
+    const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+    const jitter = Math.random() * 500;
+    await new Promise((resolve) => setTimeout(resolve, delay + jitter));
   }
-  return response.json() as Promise<T>;
+
+  // Unreachable — loop always throws above
+  throw new Error(`OpenF1 request failed after retries: ${url}`);
 }
 
 export async function getLatestRaceSession(now = new Date()): Promise<OpenF1Session | null> {

@@ -85,7 +85,7 @@ function buildPrompt(payload: RaceReportPayload): string {
   ].join("\n");
 }
 
-export async function buildRaceSummary(
+export async function buildSummary(
   payload: RaceReportPayload
 ): Promise<BuildSummaryResult> {
   if (!payload || !payload.session) {
@@ -132,4 +132,3 @@ export async function buildRaceSummary(
     };
   }
 }
-
