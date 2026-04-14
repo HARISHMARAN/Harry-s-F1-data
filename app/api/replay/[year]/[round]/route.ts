@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import { DRIVERS } from "../../../../../lib/constants/drivers";
 import {
+  getCarData,
   getDrivers,
   getLaps,
   getRaceControl,
   getSessionPositions,
+  getStints,
   getRaceSessions,
   type OpenF1Lap,
+  type OpenF1CarData,
+  type OpenF1Stint,
   type OpenF1Session,
 } from "../../../../../lib/openf1";
 
@@ -41,6 +45,35 @@ function computeTimeBounds(laps: OpenF1Lap[], fallbackStart: string, fallbackEnd
     start_time: new Date(minStart).toISOString(),
     end_time: new Date(maxEnd).toISOString(),
   };
+}
+
+function getLapEndTime(lap: OpenF1Lap, nextLap?: OpenF1Lap) {
+  if (nextLap?.date_start) {
+    return Date.parse(nextLap.date_start);
+  }
+  const lapStart = lap.date_start ? Date.parse(lap.date_start) : Date.now();
+  return lap.lap_duration ? lapStart + lap.lap_duration * 1000 : lapStart + 90_000;
+}
+
+function deriveCompoundForLap(stints: OpenF1Stint[], lapNumber: number) {
+  const stint = stints
+    .filter((entry) => {
+      const start = Number(entry.lap_start ?? 0);
+      const end = Number(entry.lap_end ?? Number.MAX_SAFE_INTEGER);
+      return lapNumber >= start && lapNumber <= end;
+    })
+    .sort((a, b) => Number(a.lap_start ?? 0) - Number(b.lap_start ?? 0))[0];
+
+  return stint?.compound ?? null;
+}
+
+function deriveDrsUsageForLap(carData: OpenF1CarData[], lapStartMs: number, lapEndMs: number) {
+  const samples = carData.filter((sample) => {
+    const time = Date.parse(sample.date);
+    return time >= lapStartMs && time <= lapEndMs;
+  });
+
+  return samples.some((sample) => Number(sample.drs ?? 0) >= 10);
 }
 
 type ReplayCacheEntry = {
@@ -90,6 +123,15 @@ export async function GET(
             fetchWithRetry(() => getLaps(raceSession.session_key), "laps", warnings),
           ]);
 
+          const [stints, carData] = await Promise.all([
+            fetchWithRetry(() => getStints(raceSession.session_key), "stints", warnings),
+            Promise.all(
+              (driversRaw ?? []).map((driver) =>
+                fetchWithRetry(() => getCarData(raceSession.session_key, driver.driver_number), `car_data_${driver.driver_number}`, warnings)
+              )
+            ).then((rows) => rows.flat().filter(Boolean) as OpenF1CarData[]),
+          ]);
+
           const positions = await fetchWithRetry(
             () => getSessionPositions(raceSession.session_key),
             "positions",
@@ -103,6 +145,7 @@ export async function GET(
 
           const safeDrivers = driversRaw ?? [];
           const safeLaps = laps ?? [];
+          const safeStints = stints ?? [];
           const drivers = safeDrivers.map((driver) => {
             const code = driver.name_acronym ?? driver.broadcast_name ?? String(driver.driver_number);
             const meta = DRIVERS[code] ?? null;
@@ -118,6 +161,46 @@ export async function GET(
               last_name: driver.last_name ?? meta?.name?.split(" ").slice(1).join(" ") ?? code,
               headshot_url: driver.headshot_url ?? "",
               country_code: driver.country_code ?? "",
+            };
+          });
+
+          const lapsByDriver = new Map<number, OpenF1Lap[]>();
+          for (const lap of safeLaps) {
+            const rows = lapsByDriver.get(lap.driver_number);
+            if (rows) {
+              rows.push(lap);
+            } else {
+              lapsByDriver.set(lap.driver_number, [lap]);
+            }
+          }
+
+          const carDataByDriver = new Map<number, OpenF1CarData[]>();
+          for (const sample of carData) {
+            const rows = carDataByDriver.get(sample.driver_number);
+            if (rows) {
+              rows.push(sample);
+            } else {
+              carDataByDriver.set(sample.driver_number, [sample]);
+            }
+          }
+
+          const enrichedLaps = safeLaps.map((lap) => {
+            const driverLaps = lapsByDriver.get(lap.driver_number) ?? [];
+            const orderedDriverLaps = [...driverLaps].sort((a, b) => {
+              const aStart = a.date_start ? Date.parse(a.date_start) : 0;
+              const bStart = b.date_start ? Date.parse(b.date_start) : 0;
+              return aStart - bStart;
+            });
+            const currentIndex = orderedDriverLaps.findIndex((entry) => entry.lap_number === lap.lap_number && entry.date_start === lap.date_start);
+            const nextLap = currentIndex >= 0 ? orderedDriverLaps[currentIndex + 1] : undefined;
+            const lapStart = lap.date_start ? Date.parse(lap.date_start) : 0;
+            const lapEnd = getLapEndTime(lap, nextLap);
+            const driverCarData = carDataByDriver.get(lap.driver_number) ?? [];
+
+            return {
+              ...lap,
+              compound: deriveCompoundForLap(safeStints, lap.lap_number),
+              drs_used: deriveDrsUsageForLap(driverCarData, lapStart, lapEnd),
             };
           });
 
@@ -140,7 +223,7 @@ export async function GET(
               round: round,
             },
             drivers,
-            laps: safeLaps,
+            laps: enrichedLaps,
             positions: positions ?? [],
             race_control: raceControl ?? [],
             track: {

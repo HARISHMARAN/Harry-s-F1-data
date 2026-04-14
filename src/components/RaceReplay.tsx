@@ -29,6 +29,8 @@ interface ReplayMarker {
   globalProgress: number;
   x: number;
   y: number;
+  compound: string | null;
+  drsUsed: boolean | null;
 }
 
 const TRACK_WIDTH = 860;
@@ -126,13 +128,13 @@ function resolveTrackPoints(dataset: ReplayDataset | null): ReplayTrackPoint[] {
 
 function getLapState(laps: ReplayLap[], replayTime: number) {
   if (laps.length === 0) {
-    return { lapNumber: 0, lapFraction: 0, globalProgress: 0 };
+    return { lapNumber: 0, lapFraction: 0, globalProgress: 0, compound: null, drsUsed: null };
   }
 
   const currentLapIndex = findLatestIndexByTime(laps, replayTime, (lap) => Date.parse(lap.date_start));
 
   if (currentLapIndex === -1) {
-    return { lapNumber: 0, lapFraction: 0, globalProgress: 0 };
+    return { lapNumber: 0, lapFraction: 0, globalProgress: 0, compound: null, drsUsed: null };
   }
 
   const currentLap = laps[currentLapIndex];
@@ -153,6 +155,8 @@ function getLapState(laps: ReplayLap[], replayTime: number) {
     lapNumber: currentLap.lap_number,
     lapFraction,
     globalProgress: currentLap.lap_number - 1 + lapFraction,
+    compound: currentLap.compound ?? null,
+    drsUsed: currentLap.drs_used ?? null,
   };
 }
 
@@ -199,6 +203,8 @@ function buildReplayMarkers(
       globalProgress: lapState.globalProgress,
       x: markerPoint.x,
       y: markerPoint.y,
+      compound: lapState.compound,
+      drsUsed: lapState.drsUsed,
     });
   });
 
@@ -404,7 +410,11 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
     return {
       session,
       drivers,
-      laps,
+      laps: laps.map((lap, index) => ({
+        ...lap,
+        compound: ['SOFT', 'MEDIUM', 'HARD'][index % 3],
+        drs_used: index % 2 === 0,
+      })),
       positions,
       race_control: [],
       track,
@@ -949,7 +959,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                 <h2 className="panel-title">Focused Driver</h2>
               </div>
               {focusedDriver ? (
-                <div className="driver-focus-card">
+                <div className="driver-focus-card" style={{ alignItems: 'start' }}>
                   <div
                     style={{
                       width: 52,
@@ -964,12 +974,20 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                   >
                     {focusedDriver.driver.name_acronym}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', flex: 1 }}>
                     <strong style={{ fontSize: '1.05rem' }}>{focusedDriver.driver.full_name}</strong>
                     <span style={{ color: 'var(--text-secondary)' }}>{focusedDriver.driver.team_name}</span>
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                       P{focusedDriver.position ?? '--'} • Lap {focusedDriver.lapNumber || '--'} • {(focusedDriver.lapFraction * 100).toFixed(0)}% through lap
                     </span>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                      <span className="speed-chip active" style={{ fontSize: '0.7rem' }}>
+                        Tyre: {focusedDriver.compound ?? 'UNKNOWN'}
+                      </span>
+                      <span className="speed-chip" style={{ fontSize: '0.7rem' }}>
+                        DRS: {focusedDriver.drsUsed ? 'USED' : 'OFF'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -989,6 +1007,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                     type="button"
                     className={`replay-row ${selectedDriverNumber === marker.driver.driver_number ? 'selected' : ''}`}
                     onClick={() => setSelectedDriverNumber(marker.driver.driver_number)}
+                    style={{ alignItems: 'center', gap: '0.6rem' }}
                   >
                     <span style={{ width: 28, fontWeight: 800, color: 'var(--text-primary)' }}>
                       {marker.position ?? '--'}
@@ -1005,6 +1024,12 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                     <span style={{ flex: 1, textAlign: 'left' }}>{marker.driver.full_name}</span>
                     <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
                       L{marker.lapNumber || 0}
+                    </span>
+                    <span className="speed-chip" style={{ fontSize: '0.65rem', padding: '0.25rem 0.5rem' }}>
+                      {marker.compound ?? 'TYRE?'}
+                    </span>
+                    <span className="speed-chip" style={{ fontSize: '0.65rem', padding: '0.25rem 0.5rem' }}>
+                      {marker.drsUsed ? 'DRS' : 'NO DRS'}
                     </span>
                   </button>
                 ))}

@@ -77,6 +77,8 @@ export interface ReplayLap {
   date_start: string;
   lap_duration: number | null;
   is_pit_out_lap: boolean;
+  compound?: string | null;
+  drs_used?: boolean | null;
 }
 
 export interface ReplayPositionSample {
@@ -125,4 +127,5 @@ export interface ReplayDataset {
   total_laps: number;
   start_time: string;
   end_time: string;
+  warnings?: string[];
 }

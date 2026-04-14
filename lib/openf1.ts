@@ -64,6 +64,26 @@ export type OpenF1RaceControl = {
   driver_number?: number | null;
 };
 
+export type OpenF1Stint = {
+  session_key: number;
+  driver_number: number;
+  compound?: string | null;
+  lap_start?: number | null;
+  lap_end?: number | null;
+  stint_number?: number | null;
+  tyre_age_at_start?: number | null;
+};
+
+export type OpenF1CarData = {
+  session_key: number;
+  driver_number: number;
+  date: string;
+  speed?: number | null;
+  throttle?: number | null;
+  brake?: number | null;
+  drs?: number | null;
+};
+
 const BASE_URL = "https://api.openf1.org/v1/";
 
 function buildUrl(path: string, params?: Record<string, string | number | boolean | undefined>) {
@@ -225,6 +245,17 @@ export async function getIntervals(sessionKey: number) {
 
 export async function getRaceControl(sessionKey: number) {
   return fetchOpenF1<OpenF1RaceControl[]>("/race_control", { session_key: sessionKey });
+}
+
+export async function getStints(sessionKey: number) {
+  return fetchOpenF1<OpenF1Stint[]>("/stints", { session_key: sessionKey });
+}
+
+export async function getCarData(sessionKey: number, driverNumber?: number) {
+  return fetchOpenF1<OpenF1CarData[]>("/car_data", {
+    session_key: sessionKey,
+    driver_number: driverNumber,
+  });
 }
 
 export type OpenF1Position = {
