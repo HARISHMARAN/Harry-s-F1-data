@@ -4,6 +4,12 @@ export type PredictionScript = {
   race: string;
   category: "Forecast" | "Analysis";
   season: number;
+  result: {
+    headline: string;
+    winner: string;
+    podium: string[];
+    note: string;
+  };
   summary: string;
   model: string;
   inputs: string[];
@@ -18,6 +24,12 @@ export const predictionScripts: PredictionScript[] = [
     race: "2026 Australian Grand Prix",
     category: "Forecast",
     season: 2026,
+    result: {
+      headline: "Projected podium: RUS > ANT > HAD",
+      winner: "RUS",
+      podium: ["RUS", "ANT", "HAD"],
+      note: "Fastest qualifying pace in the pack translates into the strongest race projection in this dataset.",
+    },
     summary:
       "XGBoost regressor that blends qualifying pace, grid penalty, team strength, regulation boost, and weather into a predicted race finishing time.",
     model: "XGBoost regression with monotone constraints",
@@ -41,6 +53,12 @@ export const predictionScripts: PredictionScript[] = [
     race: "2026 Chinese Grand Prix",
     category: "Forecast",
     season: 2026,
+    result: {
+      headline: "Projected podium: RUS > LEC > HAM",
+      winner: "RUS",
+      podium: ["RUS", "LEC", "HAM"],
+      note: "The race score leans on Australia carry-over plus China sector pace, favoring RUS at the top.",
+    },
     summary:
       "Leave-one-out XGBoost model that combines China qualifying sectors, Australia carry-over signals, team score, and weather to estimate finishing order.",
     model: "XGBoost regression with Leave-One-Out validation",
@@ -65,6 +83,12 @@ export const predictionScripts: PredictionScript[] = [
     race: "2026 Chinese Grand Prix",
     category: "Analysis",
     season: 2026,
+    result: {
+      headline: "Pace leader: ANT",
+      winner: "ANT",
+      podium: ["ANT", "RUS", "HAM"],
+      note: "Pure pace analysis puts ANT quickest on the combined ultimate-lap baseline.",
+    },
     summary:
       "Pure pace comparison that compares each driver's ultimate lap against the quickest reference lap and converts that delta into an estimated pace signal.",
     model: "Deterministic pace analysis",
