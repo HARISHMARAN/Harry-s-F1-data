@@ -1,9 +1,10 @@
 import type { ReactElement } from 'react';
-import { Terminal, Gauge, MessageSquare, LineChart, Code } from 'lucide-react';
+import { Terminal, Gauge, MessageSquare, LineChart, Code, BarChart3 } from 'lucide-react';
 
 interface AddonLibraryProps {
   onOpenReplay: () => void;
   onOpenChat: () => void;
+  onOpenPredictions: () => void;
 }
 
 interface AddonDefinition {
@@ -15,7 +16,7 @@ interface AddonDefinition {
   stack: string[];
   cmd: string;
   embedded?: boolean;
-  action?: 'REPLAY' | 'CHAT';
+  action?: 'REPLAY' | 'CHAT' | 'PREDICTIONS';
   actionLabel?: string;
 }
 
@@ -52,6 +53,18 @@ const ADDONS: AddonDefinition[] = [
     cmd: 'cd addons/racing-lap-trace-python && pip install -r requirements.txt && python3 trace.py'
   },
   {
+    id: '2026-f1-predictions',
+    name: '2026 F1 Predictions',
+    author: 'mar-antaya',
+    description: 'A script-based prediction pack for the 2026 season with race order and pace analysis outputs.',
+    icon: <BarChart3 size={24} color="var(--accent-success)" />,
+    stack: ['Python', 'XGBoost', 'FastF1', 'pandas'],
+    embedded: true,
+    action: 'PREDICTIONS',
+    actionLabel: 'Open Predictions In Dashboard',
+    cmd: 'cd addons/2026_f1_predictions && pip install -r requirements.txt && python3 prediction1.py'
+  },
+  {
     id: 'f1-rag-ai',
     name: 'F1 RAG Database',
     author: 'IAmTomShaw',
@@ -62,7 +75,7 @@ const ADDONS: AddonDefinition[] = [
   }
 ];
 
-export default function AddonLibrary({ onOpenReplay, onOpenChat }: AddonLibraryProps) {
+export default function AddonLibrary({ onOpenReplay, onOpenChat, onOpenPredictions }: AddonLibraryProps) {
   return (
     <div style={{ animation: 'fade-in 0.4s ease-out' }}>
       <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
@@ -120,6 +133,17 @@ export default function AddonLibrary({ onOpenReplay, onOpenChat }: AddonLibraryP
                 style={{ alignSelf: 'flex-start' }}
               >
                 {addon.actionLabel ?? 'Open Chat In Dashboard'}
+              </button>
+            ) : null}
+
+            {addon.embedded && addon.action === 'PREDICTIONS' ? (
+              <button
+                type="button"
+                className="replay-button"
+                onClick={onOpenPredictions}
+                style={{ alignSelf: 'flex-start' }}
+              >
+                {addon.actionLabel ?? 'Open Predictions In Dashboard'}
               </button>
             ) : null}
 

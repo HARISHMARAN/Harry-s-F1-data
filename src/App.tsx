@@ -141,6 +141,7 @@ function App() {
           <AddonLibrary 
             onOpenReplay={() => router.push('/replay')}
             onOpenChat={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'CHAT' })}
+            onOpenPredictions={() => router.push('/predictions')}
           />
         ) : viewMode === 'CHAT' ? (
           <ChatView />
