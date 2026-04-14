@@ -37,7 +37,7 @@ function App() {
   } = state;
   const isLive = liveStatus === 'LIVE';
   const nextSchedule = nextSession ?? (session?.status === 'NO_RACE' ? session : null);
-  const backdropSession = session?.status === 'NO_RACE' ? nextSchedule : session;
+  const backdropSession = nextSchedule ?? session;
 
   useEffect(() => {
     const mode = searchParams.get('mode');
