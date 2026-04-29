@@ -131,7 +131,6 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
     selectedRace?.raceName ??
     openF1Schedule?.session_name ??
     request.grandPrix?.trim() ??
-    live?.next_session?.session_name ??
     nextSession?.session_name ??
     'Next Grand Prix';
 
@@ -139,8 +138,8 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
     ? `Matched against ${selectedRace.raceName} in the ${year} schedule`
     : openF1Schedule
       ? `Matched against the OpenF1 session ${openF1Schedule.session_name}`
-      : live?.next_session?.session_name
-        ? 'Matched against the next live session'
+      : nextSession?.session_name
+        ? 'Matched against the next scheduled session'
         : 'Fell back to the latest race data';
 
   const scores = new Map<string, number>();
