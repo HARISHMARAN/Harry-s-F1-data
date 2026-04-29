@@ -36,6 +36,29 @@ export type PredictionForecastResponse = {
   sources: string[];
   updatedAt: string;
   matchedBy: string;
+  weekend?: {
+    id: string;
+    label: string;
+    sessionName: string;
+    sessionType: string;
+    scheduledAt: string | null;
+    status: 'scheduled' | 'live' | 'completed' | 'not_scheduled';
+    confidence: number;
+    winner: string;
+    podium: string[];
+    basis: string;
+    resultSource: 'actual' | 'partial' | 'not_started' | 'unavailable' | 'not_scheduled';
+    liveSignals: string[];
+    unavailableReason?: string;
+  }[];
+  weekendStatus?: {
+    meetingKey: number | null;
+    circuit: string;
+    location: string;
+    nextSession: string | null;
+    latestCompletedSession: string | null;
+    liveSession: string | null;
+  };
   dataSignals: {
     latestRaceWinner?: string;
     sameRoundWinner?: string;

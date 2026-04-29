@@ -299,6 +299,10 @@ export async function getSessionsForMeeting(meetingKey: number) {
   return fetchOpenF1<OpenF1Session[]>("/sessions", { meeting_key: meetingKey });
 }
 
+export async function getSessions(year: number) {
+  return fetchOpenF1<OpenF1Session[]>("/sessions", { year });
+}
+
 export async function getRaceSessions(year: number) {
   let sessions: OpenF1Session[] = [];
   try {
