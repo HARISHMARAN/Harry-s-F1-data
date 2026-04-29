@@ -2,7 +2,7 @@ import type { DashboardSession } from '../types/f1';
 
 interface TelemetryRibbonProps {
   session: DashboardSession | null;
-  viewMode: 'LIVE' | 'HISTORICAL' | 'REPLAY' | 'ADDONS' | 'CHAT' | 'PREDICTIONS';
+  viewMode: 'LIVE' | 'HISTORICAL' | 'REPLAY' | 'CHAT' | 'PREDICTIONS';
   live: boolean;
   signalLabel?: string;
 }

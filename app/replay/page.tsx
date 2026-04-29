@@ -34,12 +34,6 @@ export default function ReplayPage() {
               </button>
               <button
                 className="toggle-btn"
-                onClick={() => router.push("/?mode=addons")}
-              >
-                Add-on Library
-              </button>
-              <button
-                className="toggle-btn"
                 onClick={() => router.push("/?mode=chat")}
               >
                 Chatbot

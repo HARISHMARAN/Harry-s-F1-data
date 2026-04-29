@@ -7,7 +7,6 @@ import Header from './components/Header';
 import LiveTiming from './components/LiveTiming';
 import SessionInfo from './components/SessionInfo';
 import MaxTracker from './components/MaxTracker';
-import AddonLibrary from './components/AddonLibrary';
 import PredictionStudio from './components/PredictionStudio';
 import TelemetryRibbon from './components/TelemetryRibbon';
 import TrackBackdrop from './components/TrackBackdrop';
@@ -76,7 +75,7 @@ function App() {
     if (!mode) return;
     if (mode === 'live') dispatch({ type: 'SET_VIEW_MODE', payload: 'LIVE' });
     if (mode === 'historical') dispatch({ type: 'SET_VIEW_MODE', payload: 'HISTORICAL' });
-    if (mode === 'addons') dispatch({ type: 'SET_VIEW_MODE', payload: 'ADDONS' });
+    if (mode === 'addons') dispatch({ type: 'SET_VIEW_MODE', payload: 'LIVE' });
     if (mode === 'chat') dispatch({ type: 'SET_VIEW_MODE', payload: 'CHAT' });
     if (mode === 'predictions') dispatch({ type: 'SET_VIEW_MODE', payload: 'PREDICTIONS' });
   }, [searchParams, dispatch]);
@@ -141,12 +140,6 @@ function App() {
                 Race Replay
               </button>
               <button 
-                className={`toggle-btn ${viewMode === 'ADDONS' ? 'active-hist' : ''}`}
-                onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'ADDONS' })}
-              >
-                Add-on Library
-              </button>
-              <button 
                 className={`toggle-btn ${viewMode === 'CHAT' ? 'active' : ''}`}
                 onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'CHAT' })}
               >
@@ -202,12 +195,7 @@ function App() {
       </div>
 
       <div style={{ position: 'relative', zIndex: 101, width: '100%' }}>
-        {viewMode === 'ADDONS' ? (
-          <AddonLibrary 
-            onOpenReplay={() => router.push('/replay')}
-            onOpenChat={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'CHAT' })}
-          />
-        ) : viewMode === 'CHAT' ? (
+        {viewMode === 'CHAT' ? (
           <ChatView />
         ) : viewMode === 'PREDICTIONS' ? (
           <PredictionStudio />
