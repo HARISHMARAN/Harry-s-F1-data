@@ -5,33 +5,58 @@ interface DraggableWidgetProps {
   title: string;
   defaultX: number;
   defaultY: number;
+  width?: number;
   children: React.ReactNode;
 }
 
-export default function DraggableWidget({ id, title, defaultX, defaultY, children }: DraggableWidgetProps) {
-  const [position, setPosition] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = window.localStorage.getItem(`hud_widget_${id}`);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved) as { x?: number; y?: number };
-          if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
-            return { x: parsed.x, y: parsed.y };
-          }
-        } catch {
-          // Ignore invalid saved positions and fall back to defaults.
-        }
-      }
-    }
-    return { x: defaultX, y: defaultY };
-  });
+const LAYOUT_VERSION = 'miami-live-telemetry-v1';
+
+export default function DraggableWidget({ id, title, defaultX, defaultY, width, children }: DraggableWidgetProps) {
+  const storageKey = `hud_widget_${LAYOUT_VERSION}_${id}`;
+  const [position, setPosition] = useState({ x: defaultX, y: defaultY });
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
   const positionRef = useRef(position);
+  const hasSavedPositionRef = useRef(false);
 
   useEffect(() => {
     positionRef.current = position;
   }, [position]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      const saved = window.localStorage.getItem(storageKey);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved) as { x?: number; y?: number };
+          if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+            const widgetWidth = width ?? 360;
+            const boundedX = Math.max(16, Math.min(parsed.x, window.innerWidth - widgetWidth - 16));
+            const boundedY = Math.max(16, Math.min(parsed.y, window.innerHeight - 120));
+            hasSavedPositionRef.current = true;
+            setPosition({ x: boundedX, y: boundedY });
+            return;
+          }
+        } catch {
+          // Ignore invalid saved positions and fall back to this layout version.
+        }
+      }
+
+      hasSavedPositionRef.current = false;
+      setPosition({ x: defaultX, y: defaultY });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [defaultX, defaultY, storageKey, width]);
+
+  useEffect(() => {
+    if (hasSavedPositionRef.current) return;
+    if (typeof window === 'undefined') return;
+    const frameId = window.requestAnimationFrame(() => setPosition({ x: defaultX, y: defaultY }));
+    return () => window.cancelAnimationFrame(frameId);
+  }, [defaultX, defaultY]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -52,8 +77,9 @@ export default function DraggableWidget({ id, title, defaultX, defaultY, childre
       const newX = Math.round((dragRef.current.initialX + dx) / 20) * 20;
       const newY = Math.round((dragRef.current.initialY + dy) / 20) * 20;
       
-      const boundedX = Math.max(0, Math.min(newX, window.innerWidth - 100));
-      const boundedY = Math.max(0, Math.min(newY, window.innerHeight - 100));
+      const widgetWidth = width ?? 360;
+      const boundedX = Math.max(16, Math.min(newX, window.innerWidth - widgetWidth - 16));
+      const boundedY = Math.max(16, Math.min(newY, window.innerHeight - 120));
       
       setPosition({ x: boundedX, y: boundedY });
     };
@@ -62,7 +88,8 @@ export default function DraggableWidget({ id, title, defaultX, defaultY, childre
       setIsDragging(false);
       // Save position when dragging ends
       if (typeof window !== 'undefined') {
-        window.localStorage.setItem(`hud_widget_${id}`, JSON.stringify(positionRef.current));
+        hasSavedPositionRef.current = true;
+        window.localStorage.setItem(storageKey, JSON.stringify(positionRef.current));
       }
     };
 
@@ -74,12 +101,12 @@ export default function DraggableWidget({ id, title, defaultX, defaultY, childre
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, id]);
+  }, [isDragging, storageKey, width]);
 
   return (
     <div
       className={`hud-widget ${isDragging ? 'dragging' : ''}`}
-      style={{ left: position.x, top: position.y }}
+      style={{ left: position.x, top: position.y, width }}
     >
       <div className="hud-widget-header" onMouseDown={handleMouseDown}>
         <span style={{ fontSize: '10px', color: 'var(--text-muted)', letterSpacing: '1px', userSelect: 'none' }}>{title}</span>

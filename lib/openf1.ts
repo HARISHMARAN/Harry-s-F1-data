@@ -206,6 +206,36 @@ export async function getLatestRaceSession(now = new Date()): Promise<OpenF1Sess
   return sorted[0] ?? sessions[0] ?? null;
 }
 
+export async function getCurrentSession(now = new Date()): Promise<OpenF1Session | null> {
+  const year = now.getUTCFullYear();
+  let sessions: OpenF1Session[] = [];
+
+  try {
+    sessions = await fetchOpenF1<OpenF1Session[]>("/sessions", { year });
+  } catch {
+    sessions = [];
+  }
+
+  if (!sessions.length) {
+    try {
+      sessions = await fetchOpenF1<OpenF1Session[]>("/sessions");
+    } catch {
+      sessions = [];
+    }
+  }
+
+  const nowTs = now.getTime();
+  return sessions
+    .filter((session) => {
+      if (!session.date_start) return false;
+      const startTs = Date.parse(session.date_start);
+      const endTs = session.date_end ? Date.parse(session.date_end) : startTs + 3 * 60 * 60 * 1000;
+      if (!Number.isFinite(startTs) || !Number.isFinite(endTs)) return false;
+      return startTs <= nowTs && nowTs <= endTs + 60 * 60 * 1000;
+    })
+    .sort((a, b) => Date.parse(b.date_start) - Date.parse(a.date_start))[0] ?? null;
+}
+
 export async function getNextRaceSession(now = new Date()): Promise<OpenF1Session | null> {
   const year = now.getUTCFullYear();
 
@@ -215,6 +245,30 @@ export async function getNextRaceSession(now = new Date()): Promise<OpenF1Sessio
         year: targetYear,
         session_name: "Race",
       });
+    } catch {
+      return [] as OpenF1Session[];
+    }
+  };
+
+  const sessionsThisYear = await fetchYear(year);
+  const nextInYear = sessionsThisYear
+    .filter((session) => (session.date_start ? Date.parse(session.date_start) > now.getTime() : false))
+    .sort((a, b) => Date.parse(a.date_start) - Date.parse(b.date_start))[0];
+
+  if (nextInYear) return nextInYear;
+
+  const sessionsNextYear = await fetchYear(year + 1);
+  return sessionsNextYear
+    .filter((session) => session.date_start)
+    .sort((a, b) => Date.parse(a.date_start) - Date.parse(b.date_start))[0] ?? null;
+}
+
+export async function getNextSession(now = new Date()): Promise<OpenF1Session | null> {
+  const year = now.getUTCFullYear();
+
+  const fetchYear = async (targetYear: number) => {
+    try {
+      return await fetchOpenF1<OpenF1Session[]>("/sessions", { year: targetYear });
     } catch {
       return [] as OpenF1Session[];
     }

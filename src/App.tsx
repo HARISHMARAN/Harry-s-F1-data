@@ -13,6 +13,7 @@ import TelemetryRibbon from './components/TelemetryRibbon';
 import TrackBackdrop from './components/TrackBackdrop';
 import DraggableWidget from './components/DraggableWidget';
 import NextRaceIntelligence from './components/NextRaceIntelligence';
+import LiveRaceTelemetryPanel from './components/LiveRaceTelemetryPanel';
 import ChatView from './components/chat/ChatView';
 import { AlertCircle } from 'lucide-react';
 import { useDashboardData } from './hooks/useDashboardData';
@@ -25,14 +26,14 @@ import type { DashboardSession } from './types/f1';
 const BACKDROP_REFRESH_MS = 30 * 60 * 1000;
 
 const FALLBACK_BACKDROP_SESSION: DashboardSession = {
-  session_key: 'japanese-gp-fallback',
-  session_name: 'Japanese Grand Prix',
-  session_type: 'Historical Race',
-  country_name: 'Japan',
-  location: 'Suzuka',
-  circuit_short_name: 'suzuka',
-  date_start: '2026-04-05T06:00:00Z',
-  current_lap: 'FINISHED',
+  session_key: 'miami-gp-fallback',
+  session_name: 'Miami Grand Prix',
+  session_type: 'Race',
+  country_name: 'United States',
+  location: 'Miami Gardens',
+  circuit_short_name: 'Miami',
+  date_start: '2026-05-03T20:00:00Z',
+  current_lap: 'SCHEDULED',
 };
 
 function App() {
@@ -57,7 +58,8 @@ function App() {
   const isLive = liveStatus === 'LIVE';
   const [latestCompletedSession, setLatestCompletedSession] = useState<DashboardSession | null>(null);
   const nextSchedule = nextSession ?? (session?.status === 'NO_RACE' ? session : null);
-  const backdropSession = latestCompletedSession ?? nextSchedule ?? session ?? FALLBACK_BACKDROP_SESSION;
+  const nextRaceSchedule = nextSchedule?.session_type === 'Race' ? nextSchedule : FALLBACK_BACKDROP_SESSION;
+  const backdropSession = nextSchedule ?? session ?? latestCompletedSession ?? FALLBACK_BACKDROP_SESSION;
   const [viewportWidth, setViewportWidth] = useState(1440);
   const rightRailX = Math.max(20, viewportWidth - 380);
   const isNarrowViewport = viewportWidth < 1100;
@@ -271,7 +273,11 @@ function App() {
                   </div>
 
                   <div className="glass-panel" style={{ padding: '0.9rem' }}>
-                    <NextRaceIntelligence nextSession={nextSchedule} compact />
+                    <NextRaceIntelligence nextSession={nextRaceSchedule} compact />
+                  </div>
+
+                  <div className="glass-panel" style={{ padding: '0.9rem' }}>
+                    <LiveRaceTelemetryPanel nextSession={nextSchedule} compact />
                   </div>
 
                   <div className="glass-panel" style={{ padding: '0.9rem' }}>
@@ -299,7 +305,7 @@ function App() {
                 </div>
               ) : (
                 <>
-                  <DraggableWidget id="leaderboard" title={viewMode === 'LIVE' ? 'LIVE TIMING & INTERVALS' : 'RACE CLASSIFICATION'} defaultX={20} defaultY={80}>
+                  <DraggableWidget id="leaderboard" title={viewMode === 'LIVE' ? 'LIVE TIMING & INTERVALS' : 'RACE CLASSIFICATION'} defaultX={20} defaultY={80} width={350}>
                     {leaderboard && (
                       <LiveTiming
                         data={leaderboard}
@@ -310,11 +316,15 @@ function App() {
                     )}
                   </DraggableWidget>
 
-                  <DraggableWidget id="next_race_intelligence" title="NEXT RACE INTELLIGENCE" defaultX={390} defaultY={80}>
-                    <NextRaceIntelligence nextSession={nextSchedule} />
+                  <DraggableWidget id="live_race_telemetry" title="MIAMI LIVE RACE TELEMETRY" defaultX={390} defaultY={80} width={620}>
+                    <LiveRaceTelemetryPanel nextSession={nextSchedule} />
                   </DraggableWidget>
 
-                  <DraggableWidget id="focused_driver" title="DRIVER FOCUS" defaultX={rightRailX} defaultY={80}>
+                  <DraggableWidget id="next_race_intelligence" title="NEXT RACE INTELLIGENCE" defaultX={390} defaultY={700} width={620}>
+                    <NextRaceIntelligence nextSession={nextRaceSchedule} />
+                  </DraggableWidget>
+
+                  <DraggableWidget id="focused_driver" title="DRIVER FOCUS" defaultX={rightRailX} defaultY={80} width={340}>
                     {session && (
                       <MaxTracker
                         currentPos={leaderboard?.find((d) => d.name_acronym === 'VER')?.position || null}
@@ -324,11 +334,11 @@ function App() {
                     )}
                   </DraggableWidget>
 
-                  <DraggableWidget id="session_info" title="SESSION" defaultX={rightRailX} defaultY={320}>
+                  <DraggableWidget id="session_info" title="SESSION" defaultX={rightRailX} defaultY={470} width={340}>
                     {session && <SessionInfo session={session} />}
                   </DraggableWidget>
 
-                  <DraggableWidget id="data_pipeline" title="PIPELINE" defaultX={rightRailX} defaultY={480}>
+                  <DraggableWidget id="data_pipeline" title="PIPELINE" defaultX={rightRailX} defaultY={1000} width={340}>
                     <div style={{ width: '320px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--accent-cyan)' }}>
                         {viewMode === 'LIVE' ? 'SYNCHRONIZED' : 'ARCHIVED'}

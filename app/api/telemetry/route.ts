@@ -1,12 +1,22 @@
 import { NextResponse } from "next/server";
 import { buildTelemetryResponse } from "../../../lib/analytics";
 import {
+  getCarData,
+  getCurrentSession,
   getDrivers,
   getIntervals,
   getLaps,
   getLapsForLapNumbers,
-  getLatestRaceSession,
-  getNextRaceSession,
+  getNextSession,
+  getRaceControl,
+  getStints,
+  getWeather,
+  type OpenF1CarData,
+  type OpenF1Driver,
+  type OpenF1Lap,
+  type OpenF1RaceControl,
+  type OpenF1Stint,
+  type OpenF1Weather,
 } from "../../../lib/openf1";
 
 export const runtime = "nodejs";
@@ -15,6 +25,7 @@ type TelemetryPayload =
   | (ReturnType<typeof buildTelemetryResponse> & {
       status: "live";
       next_session?: null;
+      telemetry_intelligence?: TelemetryIntelligence;
       warnings?: string[];
     })
   | {
@@ -33,10 +44,62 @@ type TelemetryPayload =
         date_end: string | null;
       } | null;
       warnings?: string[];
+      telemetry_intelligence?: TelemetryIntelligence;
     };
 
 const FRESH_TTL_MS = 5_000;
 const STALE_TTL_MS = 60_000;
+const MAX_CAR_DATA_DRIVERS = 6;
+
+type DriverTelemetryInsight = {
+  driver_number: number;
+  code: string;
+  name: string;
+  team: string;
+  position: number | null;
+  current_lap: number | null;
+  compound: string | null;
+  tyre_age_laps: number | null;
+  stint_number: number | null;
+  pit_stops: number;
+  last_lap_time: number | null;
+  top_speed: number | null;
+  elimination_status: string;
+  battery_status: string;
+};
+
+type TelemetryIntelligence = {
+  session_name: string;
+  session_type: string;
+  status: "live" | "no_live";
+  generated_at: string;
+  weather: {
+    air_temperature: number | null;
+    track_temperature: number | null;
+    humidity: number | null;
+    rainfall: number | null;
+    wind_speed: number | null;
+    pressure: number | null;
+  } | null;
+  drivers: DriverTelemetryInsight[];
+  race_control: {
+    category: string | null;
+    flag: string | null;
+    message: string;
+    lap_number: number | null;
+  }[];
+  eliminations: {
+    drivers: string[];
+    teams: string[];
+    note: string;
+  };
+  battery: {
+    available: boolean;
+    note: string;
+  };
+  track_status: string;
+  data_notes: string[];
+};
 
 let cachedPayload: TelemetryPayload | null = null;
 let lastFetchMs = 0;
@@ -59,11 +122,177 @@ async function fetchWithRetry<T>(fn: () => Promise<T>, maxAttempts = 3) {
   throw new Error("Retry attempts exhausted");
 }
 
+function latestByDate<T extends { date?: string | null }>(rows: T[]) {
+  return [...rows].sort((a, b) => Date.parse(b.date ?? "") - Date.parse(a.date ?? ""))[0] ?? null;
+}
+
+function latestLapByDriver(laps: OpenF1Lap[]) {
+  const latest = new Map<number, OpenF1Lap>();
+  laps.forEach((lap) => {
+    const current = latest.get(lap.driver_number);
+    if (!current || lap.lap_number > current.lap_number) {
+      latest.set(lap.driver_number, lap);
+    }
+  });
+  return latest;
+}
+
+function latestCarSpeedByDriver(carData: OpenF1CarData[]) {
+  const latest = new Map<number, OpenF1CarData>();
+  carData.forEach((sample) => {
+    const current = latest.get(sample.driver_number);
+    if (!current || Date.parse(sample.date) > Date.parse(current.date)) {
+      latest.set(sample.driver_number, sample);
+    }
+  });
+  return latest;
+}
+
+function stintsByDriver(stints: OpenF1Stint[]) {
+  const grouped = new Map<number, OpenF1Stint[]>();
+  stints.forEach((stint) => {
+    const current = grouped.get(stint.driver_number) ?? [];
+    current.push(stint);
+    grouped.set(stint.driver_number, current);
+  });
+  grouped.forEach((driverStints) => {
+    driverStints.sort((a, b) => Number(a.stint_number ?? 0) - Number(b.stint_number ?? 0));
+  });
+  return grouped;
+}
+
+function getCurrentStint(driverStints: OpenF1Stint[], currentLap: number | null) {
+  if (!driverStints.length) return null;
+  if (currentLap === null) return driverStints[driverStints.length - 1] ?? null;
+  return driverStints.find((stint) => {
+    const start = stint.lap_start ?? 0;
+    const end = stint.lap_end ?? Number.MAX_SAFE_INTEGER;
+    return start <= currentLap && currentLap <= end;
+  }) ?? driverStints[driverStints.length - 1] ?? null;
+}
+
+function tyreAge(stint: OpenF1Stint | null, currentLap: number | null) {
+  if (!stint || currentLap === null || stint.lap_start === null || stint.lap_start === undefined) return null;
+  const ageAtStart = stint.tyre_age_at_start ?? 0;
+  return Math.max(0, currentLap - stint.lap_start + ageAtStart + 1);
+}
+
+function inferEliminations(messages: OpenF1RaceControl[], drivers: OpenF1Driver[]) {
+  const driverByNumber = new Map(drivers.map((driver) => [driver.driver_number, driver]));
+  const eliminationMessages = messages.filter((message) => {
+    const text = message.message?.toLowerCase() ?? "";
+    return /retired|stopped|out of session|will not take part|dnf|eliminated/.test(text);
+  });
+
+  const driverLabels = new Set<string>();
+  const teamLabels = new Set<string>();
+  eliminationMessages.forEach((message) => {
+    if (!message.driver_number) return;
+    const driver = driverByNumber.get(message.driver_number);
+    if (!driver) return;
+    driverLabels.add(driver.name_acronym ?? driver.broadcast_name ?? driver.full_name ?? String(driver.driver_number));
+    if (driver.team_name) teamLabels.add(driver.team_name);
+  });
+
+  return {
+    drivers: [...driverLabels],
+    teams: [...teamLabels],
+    note: eliminationMessages.length
+      ? "Derived from race-control retirement/stopped messages."
+      : "No driver or team elimination is indicated by the OpenF1 race-control feed. Qualifying elimination is only available during qualifying sessions.",
+  };
+}
+
+function buildTelemetryIntelligence(input: {
+  sessionName: string;
+  sessionType: string;
+  status: "live" | "no_live";
+  drivers: OpenF1Driver[];
+  laps: OpenF1Lap[];
+  stints: OpenF1Stint[];
+  weather: OpenF1Weather[];
+  raceControl: OpenF1RaceControl[];
+  carData: OpenF1CarData[];
+}): TelemetryIntelligence {
+  const latestLaps = latestLapByDriver(input.laps);
+  const groupedStints = stintsByDriver(input.stints);
+  const latestSpeeds = latestCarSpeedByDriver(input.carData);
+  const latestWeather = latestByDate(input.weather);
+  const recentRaceControl = [...input.raceControl]
+    .sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
+    .slice(0, 8);
+  const eliminations = inferEliminations(input.raceControl, input.drivers);
+
+  const drivers = input.drivers.map((driver) => {
+    const lap = latestLaps.get(driver.driver_number) ?? null;
+    const currentLap = lap?.lap_number ?? null;
+    const currentStint = getCurrentStint(groupedStints.get(driver.driver_number) ?? [], currentLap);
+    return {
+      driver_number: driver.driver_number,
+      code: driver.name_acronym ?? driver.broadcast_name ?? String(driver.driver_number),
+      name: driver.full_name ?? driver.broadcast_name ?? driver.name_acronym ?? String(driver.driver_number),
+      team: driver.team_name ?? "Unknown",
+      position: lap?.position ?? null,
+      current_lap: currentLap,
+      compound: currentStint?.compound ?? lap?.compound ?? null,
+      tyre_age_laps: tyreAge(currentStint, currentLap),
+      stint_number: currentStint?.stint_number ?? null,
+      pit_stops: Math.max(0, (groupedStints.get(driver.driver_number)?.length ?? 1) - 1),
+      last_lap_time: lap?.lap_duration ?? null,
+      top_speed: latestSpeeds.get(driver.driver_number)?.speed ?? null,
+      elimination_status: eliminations.drivers.includes(driver.name_acronym ?? "")
+        ? "Race-control issue indicated"
+        : "No elimination indicated",
+      battery_status: "Unavailable in OpenF1 public feed",
+    };
+  }).sort((a, b) => {
+    if (a.position === null && b.position === null) return a.driver_number - b.driver_number;
+    if (a.position === null) return 1;
+    if (b.position === null) return -1;
+    return a.position - b.position;
+  });
+
+  return {
+    session_name: input.sessionName,
+    session_type: input.sessionType,
+    status: input.status,
+    generated_at: new Date().toISOString(),
+    weather: latestWeather
+      ? {
+          air_temperature: latestWeather.air_temperature ?? null,
+          track_temperature: latestWeather.track_temperature ?? null,
+          humidity: latestWeather.humidity ?? null,
+          rainfall: latestWeather.rainfall ?? null,
+          wind_speed: latestWeather.wind_speed ?? null,
+          pressure: latestWeather.pressure ?? null,
+        }
+      : null,
+    drivers,
+    race_control: recentRaceControl.map((message) => ({
+      category: message.category ?? null,
+      flag: message.flag ?? null,
+      message: message.message ?? "",
+      lap_number: message.lap_number ?? null,
+    })),
+    eliminations,
+    battery: {
+      available: false,
+      note: "OpenF1 does not expose ERS/battery state in the public 2026 feed used by this app.",
+    },
+    track_status: recentRaceControl.find((message) => message.flag)?.flag ?? "No active race-control flag in feed",
+    data_notes: [
+      input.stints.length ? "Tyre and pit-stop data is sourced from OpenF1 stints." : "Tyre/stint data is not available until OpenF1 publishes it for the active session.",
+      input.weather.length ? "Weather data is sourced from OpenF1 weather samples." : "Weather data is not available for this session yet.",
+      "Road-grip and battery deployment are not present in the public OpenF1 API; the dashboard shows track temperature, rainfall, wind, and pressure instead.",
+    ],
+  };
+}
+
 async function buildTelemetryPayload(): Promise<TelemetryPayload> {
   const warnings: string[] = [];
-  const session = await fetchWithRetry(() => getLatestRaceSession());
+  const session = await fetchWithRetry(() => getCurrentSession());
   if (!session) {
-    const nextSession = await fetchWithRetry(() => getNextRaceSession());
+    const nextSession = await fetchWithRetry(() => getNextSession());
     return {
       status: "no_live",
       session: "no-live-session",
@@ -82,12 +311,35 @@ async function buildTelemetryPayload(): Promise<TelemetryPayload> {
           }
         : null,
       warnings,
+      telemetry_intelligence: buildTelemetryIntelligence({
+        sessionName: nextSession?.session_name ?? "No live session",
+        sessionType: nextSession?.session_type ?? "Race",
+        status: "no_live",
+        drivers: [],
+        laps: [],
+        stints: [],
+        weather: [],
+        raceControl: [],
+        carData: [],
+      }),
     };
   }
 
-  const [drivers, intervals] = await Promise.all([
+  const [drivers, intervals, stints, weather, raceControl] = await Promise.all([
     fetchWithRetry(() => getDrivers(session.session_key)),
     fetchWithRetry(() => getIntervals(session.session_key)),
+    getStints(session.session_key).catch((error) => {
+      warnings.push(`stints unavailable: ${error instanceof Error ? error.message : "unknown error"}`);
+      return [];
+    }),
+    getWeather(session.session_key).catch((error) => {
+      warnings.push(`weather unavailable: ${error instanceof Error ? error.message : "unknown error"}`);
+      return [];
+    }),
+    getRaceControl(session.session_key).catch((error) => {
+      warnings.push(`race control unavailable: ${error instanceof Error ? error.message : "unknown error"}`);
+      return [];
+    }),
   ]);
 
   const lapNumbers = intervals
@@ -100,9 +352,31 @@ async function buildTelemetryPayload(): Promise<TelemetryPayload> {
       ? await fetchWithRetry(() => getLapsForLapNumbers(session.session_key, [maxLap, maxLap - 1]))
       : await fetchWithRetry(() => getLaps(session.session_key));
 
+  const carData = (
+    await Promise.all(
+      drivers.slice(0, MAX_CAR_DATA_DRIVERS).map((driver) =>
+        getCarData(session.session_key, driver.driver_number).catch((error) => {
+          warnings.push(`car data unavailable for ${driver.name_acronym ?? driver.driver_number}: ${error instanceof Error ? error.message : "unknown error"}`);
+          return [];
+        })
+      )
+    )
+  ).flat();
+
   return {
     status: "live",
     ...buildTelemetryResponse(session, drivers, laps, intervals),
+    telemetry_intelligence: buildTelemetryIntelligence({
+      sessionName: session.session_name,
+      sessionType: session.session_type ?? "Session",
+      status: "live",
+      drivers,
+      laps,
+      stints,
+      weather,
+      raceControl,
+      carData,
+    }),
     warnings,
   };
 }
@@ -157,7 +431,7 @@ export async function GET() {
         headers: { "x-telemetry-cache": "stale-on-error" },
       });
     }
-    const nextSession = await getNextRaceSession().catch(() => null);
+    const nextSession = await getNextSession().catch(() => null);
     return NextResponse.json(
       {
         status: "no_live",
@@ -177,6 +451,17 @@ export async function GET() {
             }
           : null,
         warnings: ["Telemetry offline fallback response"],
+        telemetry_intelligence: buildTelemetryIntelligence({
+          sessionName: nextSession?.session_name ?? "No live session",
+          sessionType: nextSession?.session_type ?? "Race",
+          status: "no_live",
+          drivers: [],
+          laps: [],
+          stints: [],
+          weather: [],
+          raceControl: [],
+          carData: [],
+        }),
       },
       { status: 200, headers: { "x-telemetry-cache": "offline-fallback" } }
     );
