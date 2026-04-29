@@ -36,6 +36,8 @@ export interface DashboardData {
   max_stats: MaxStats;
   live_status: 'LIVE' | 'NO_RACE';
   next_session?: DashboardSession | null;
+  data_health?: 'healthy' | 'degraded' | 'offline';
+  warnings?: string[];
 }
 
 export interface SeasonRace {
@@ -48,9 +50,9 @@ export interface ReplaySessionSummary {
   session_type: string;
   session_name: string;
   date_start: string;
-  date_end: string;
-  meeting_key: number;
-  circuit_key: number;
+  date_end: string | null;
+  meeting_key: number | null;
+  circuit_key: number | null;
   circuit_short_name: string;
   country_name: string;
   location: string;
@@ -77,6 +79,7 @@ export interface ReplayLap {
   driver_number: number;
   lap_number: number;
   date_start: string;
+  position?: number | null;
   lap_duration: number | null;
   duration_sector_1?: number | null;
   duration_sector_2?: number | null;
@@ -101,6 +104,74 @@ export interface ReplayRaceControlMessage {
   message: string;
   lap_number: number | null;
   driver_number: number | null;
+}
+
+export interface ReplayStint {
+  session_key: number;
+  driver_number: number;
+  stint_number: number | null;
+  lap_start: number | null;
+  lap_end: number | null;
+  compound: string | null;
+  tyre_age_at_start: number | null;
+}
+
+export interface ReplayPitStop {
+  session_key: number;
+  driver_number: number;
+  pit_in_lap: number;
+  pit_out_lap: number;
+  compound_in: string | null;
+  compound_out: string | null;
+}
+
+export interface ReplayWeatherSample {
+  session_key: number;
+  date: string;
+  air_temperature: number | null;
+  track_temperature: number | null;
+  humidity: number | null;
+  pressure: number | null;
+  rainfall: number | null;
+  wind_direction: number | null;
+  wind_speed: number | null;
+}
+
+export interface ReplayTeamRadioMessage {
+  session_key: number;
+  date: string;
+  driver_number: number | null;
+  recording_url: string | null;
+  transcript: string | null;
+}
+
+export interface ReplayTyrePerLapSample {
+  session_key: number;
+  driver_number: number;
+  lap_number: number;
+  compound: string | null;
+}
+
+export interface ReplayStrategyStint {
+  compound: string;
+  lap_start: number;
+  lap_end: number;
+  laps: number;
+  average_lap_time: number | null;
+  degradation: number | null;
+}
+
+export interface ReplayStrategySummary {
+  session_key: number;
+  driver_number: number;
+  driver_name: string;
+  start_compound: string | null;
+  first_stop_lap: number | null;
+  total_stops: number;
+  compounds_used: string[];
+  laps_per_compound: Record<string, number>;
+  stints: ReplayStrategyStint[];
+  summary: string;
 }
 
 export interface ReplayLocationSample {
@@ -135,6 +206,12 @@ export interface ReplayDataset {
   laps: ReplayLap[];
   positions: ReplayPositionSample[];
   race_control: ReplayRaceControlMessage[];
+  stints: ReplayStint[];
+  pit_stops: ReplayPitStop[];
+  weather: ReplayWeatherSample[];
+  team_radio: ReplayTeamRadioMessage[];
+  tyre_per_lap: ReplayTyrePerLapSample[];
+  strategy_summaries: ReplayStrategySummary[];
   track: ReplayTrackOutline;
   drs_zones?: ReplayDrsZone[];
   total_laps: number;

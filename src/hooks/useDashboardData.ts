@@ -15,6 +15,8 @@ interface DashboardState {
   nextSession: DashboardSession | null;
   loading: boolean;
   errorMsg: string | null;
+  dataState: 'loading' | 'healthy' | 'degraded' | 'offline';
+  warnings: string[];
   selectedYear: string;
   selectedRound: string | null;
   seasonRaces: SeasonRace[];
@@ -33,6 +35,8 @@ type DashboardAction =
         max_stats: MaxStats | null;
         live_status: 'LIVE' | 'NO_RACE';
         next_session?: DashboardSession | null;
+        data_health?: 'healthy' | 'degraded' | 'offline';
+        warnings?: string[];
       };
     }
   | { type: 'FETCH_ERROR'; payload: string }
@@ -48,7 +52,7 @@ const dashboardReducer = (state: DashboardState, action: DashboardAction): Dashb
     case 'SET_ROUND':
       return { ...state, selectedRound: action.payload };
     case 'FETCH_START':
-      return { ...state, loading: true, errorMsg: null };
+      return { ...state, loading: true, errorMsg: null, dataState: state.session ? state.dataState : 'loading' };
     case 'FETCH_SUCCESS':
       return {
         ...state,
@@ -58,16 +62,17 @@ const dashboardReducer = (state: DashboardState, action: DashboardAction): Dashb
         maxStats: action.payload.max_stats,
         liveStatus: action.payload.live_status,
         nextSession: action.payload.next_session ?? null,
+        dataState: action.payload.data_health ?? 'healthy',
+        warnings: action.payload.warnings ?? [],
+        errorMsg: action.payload.data_health === 'offline' ? 'Live telemetry is currently unavailable.' : null,
       };
     case 'FETCH_ERROR':
       return {
         ...state,
         loading: false,
         errorMsg: action.payload,
-        session: null,
-        leaderboard: [],
-        liveStatus: 'NO_RACE',
-        nextSession: null,
+        dataState: state.session ? 'degraded' : 'offline',
+        warnings: [action.payload],
       };
     case 'LOAD_CALENDAR':
       return { ...state, seasonRaces: action.payload };
@@ -92,6 +97,8 @@ const initialState: DashboardState = {
   nextSession: null,
   loading: true,
   errorMsg: null,
+  dataState: 'loading',
+  warnings: [],
   selectedYear: DEFAULT_YEAR,
   selectedRound: null,
   seasonRaces: [],
@@ -133,13 +140,18 @@ export function useDashboardData() {
   // Unified data loader depending on mode and selections
   useEffect(() => {
     let intervalId: ReturnType<typeof setInterval> | undefined;
+    let inFlight = false;
 
     if (state.viewMode !== 'LIVE' && state.viewMode !== 'HISTORICAL') {
       return undefined;
     }
 
     const loadData = async (isPolling = false) => {
+      if (isPolling && inFlight) {
+        return;
+      }
       if (!isPolling) dispatch({ type: 'FETCH_START' });
+      inFlight = true;
       try {
         let data;
         if (state.viewMode === 'LIVE') {
@@ -149,8 +161,16 @@ export function useDashboardData() {
         }
         dispatch({ type: 'FETCH_SUCCESS', payload: data });
       } catch (err: unknown) {
-        console.error("Dashboard failed to load data:", err);
-        dispatch({ type: 'FETCH_ERROR', payload: err instanceof Error ? err.message : "Failed to load OpenF1 data." });
+        const message = err instanceof Error ? err.message : "Failed to load OpenF1 data.";
+        const transient = /aborted|failed to fetch|network/i.test(message.toLowerCase());
+        if (!isPolling || !transient) {
+          console.error("Dashboard failed to load data:", err);
+        }
+        if (!isPolling) {
+          dispatch({ type: 'FETCH_ERROR', payload: message });
+        }
+      } finally {
+        inFlight = false;
       }
     };
 

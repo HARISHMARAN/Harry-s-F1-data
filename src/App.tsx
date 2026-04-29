@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from 'react';
+import { useState } from 'react';
 
 import Header from './components/Header';
 import LiveTiming from './components/LiveTiming';
@@ -11,12 +12,28 @@ import PredictionStudio from './components/PredictionStudio';
 import TelemetryRibbon from './components/TelemetryRibbon';
 import TrackBackdrop from './components/TrackBackdrop';
 import DraggableWidget from './components/DraggableWidget';
+import NextRaceIntelligence from './components/NextRaceIntelligence';
 import ChatView from './components/chat/ChatView';
 import { AlertCircle } from 'lucide-react';
 import { useDashboardData } from './hooks/useDashboardData';
 import { DASHBOARD_TITLE } from './constants';
 import { LeaderboardSkeleton } from './components/Skeleton';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { fetchHistoricalData } from './services/jolpica';
+import type { DashboardSession } from './types/f1';
+
+const BACKDROP_REFRESH_MS = 30 * 60 * 1000;
+
+const FALLBACK_BACKDROP_SESSION: DashboardSession = {
+  session_key: 'japanese-gp-fallback',
+  session_name: 'Japanese Grand Prix',
+  session_type: 'Historical Race',
+  country_name: 'Japan',
+  location: 'Suzuka',
+  circuit_short_name: 'suzuka',
+  date_start: '2026-04-05T06:00:00Z',
+  current_lap: 'FINISHED',
+};
 
 function App() {
   const router = useRouter();
@@ -29,6 +46,8 @@ function App() {
     maxStats,
     loading,
     errorMsg,
+    dataState,
+    warnings,
     selectedYear,
     selectedRound,
     seasonRaces,
@@ -36,8 +55,19 @@ function App() {
     nextSession,
   } = state;
   const isLive = liveStatus === 'LIVE';
+  const [latestCompletedSession, setLatestCompletedSession] = useState<DashboardSession | null>(null);
   const nextSchedule = nextSession ?? (session?.status === 'NO_RACE' ? session : null);
-  const backdropSession = nextSchedule ?? session;
+  const backdropSession = latestCompletedSession ?? nextSchedule ?? session ?? FALLBACK_BACKDROP_SESSION;
+  const [viewportWidth, setViewportWidth] = useState(1440);
+  const rightRailX = Math.max(20, viewportWidth - 380);
+  const isNarrowViewport = viewportWidth < 1100;
+
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const mode = searchParams.get('mode');
@@ -49,11 +79,36 @@ function App() {
     if (mode === 'predictions') dispatch({ type: 'SET_VIEW_MODE', payload: 'PREDICTIONS' });
   }, [searchParams, dispatch]);
 
+  useEffect(() => {
+    let ignore = false;
+
+    const loadLatestRaceForBackdrop = async () => {
+      try {
+        const latestRace = await fetchHistoricalData();
+        if (!ignore && latestRace?.session) {
+          setLatestCompletedSession(latestRace.session);
+        }
+      } catch {
+        if (!ignore) {
+          setLatestCompletedSession((current) => current ?? FALLBACK_BACKDROP_SESSION);
+        }
+      }
+    };
+
+    loadLatestRaceForBackdrop();
+    const intervalId = window.setInterval(loadLatestRaceForBackdrop, BACKDROP_REFRESH_MS);
+
+    return () => {
+      ignore = true;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
   return (
     <div className="app-container" style={{ position: 'relative', minHeight: '100vh' }}>
       
-      {/* BACKGROUND LAYER: TRACK MAP (FIXED) - Only show when NOT in ADDONS or separate REPLAY mode */}
-      {(viewMode === 'LIVE' || viewMode === 'HISTORICAL') && !loading && !errorMsg && (
+      {/* BACKGROUND LAYER: TRACK MAP (FIXED) - Always latest completed race */}
+      {backdropSession && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1 }}>
           <TrackBackdrop session={backdropSession} />
         </div>
@@ -62,57 +117,53 @@ function App() {
       {/* FOREGROUND CONTENT */}
       <div style={{ position: 'relative', zIndex: 100, pointerEvents: 'none', width: '100%' }}>
         <div style={{ pointerEvents: 'auto' }}>
-          <Header 
-            sessionName={DASHBOARD_TITLE} 
-            isLive={viewMode === 'LIVE' && isLive} 
-          />
-          <TelemetryRibbon session={session} viewMode={viewMode} live={viewMode === 'LIVE' && isLive} signalLabel={viewMode === 'LIVE' ? 'SIGNAL: LIVE PACKET' : 'SIGNAL: STABLE'} />
-          
-          {/* Mode Toggle Switch */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
+          {/* Top Placeholder: Primary Mode Switch */}
+          <div className="top-placeholder">
             <div className="mode-toggle">
               <button 
                 className={`toggle-btn ${viewMode === 'LIVE' ? 'active' : ''}`}
                 onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'LIVE' })}
               >
-                ● LIVE TELEMETRY
+                Live Telemetry
               </button>
               <button 
                 className={`toggle-btn ${viewMode === 'HISTORICAL' ? 'active-hist' : ''}`}
                 onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'HISTORICAL' })}
               >
-                HISTORICAL ARCHIVE
+                Historical Archive
               </button>
               <button 
-                className={`toggle-btn ${viewMode === 'REPLAY' ? 'active' : ''}`}
-                style={{ backgroundColor: viewMode === 'REPLAY' ? 'rgba(0, 147, 204, 0.16)' : 'transparent', boxShadow: viewMode === 'REPLAY' ? '0 0 10px rgba(0, 147, 204, 0.25)' : 'none' }}
+                className={`toggle-btn ${viewMode === 'REPLAY' ? 'active-hist' : ''}`}
                 onClick={() => router.push('/replay')}
               >
-                RACE REPLAY
+                Race Replay
               </button>
               <button 
-                className={`toggle-btn ${viewMode === 'ADDONS' ? 'active' : ''}`}
-                style={{ backgroundColor: viewMode === 'ADDONS' ? 'var(--text-muted)' : 'transparent', boxShadow: viewMode === 'ADDONS' ? '0 0 10px rgba(140, 140, 148, 0.3)' : 'none' }}
+                className={`toggle-btn ${viewMode === 'ADDONS' ? 'active-hist' : ''}`}
                 onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'ADDONS' })}
               >
-                ADD-ON LIBRARY
+                Add-on Library
               </button>
               <button 
                 className={`toggle-btn ${viewMode === 'CHAT' ? 'active' : ''}`}
-                style={{ backgroundColor: viewMode === 'CHAT' ? 'rgba(234, 51, 35, 0.12)' : 'transparent', boxShadow: viewMode === 'CHAT' ? '0 0 10px rgba(234, 51, 35, 0.3)' : 'none' }}
                 onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'CHAT' })}
               >
-                CHATBOT
+                Chatbot
               </button>
               <button 
-                className={`toggle-btn ${viewMode === 'PREDICTIONS' ? 'active' : ''}`}
-                style={{ backgroundColor: viewMode === 'PREDICTIONS' ? 'rgba(0, 147, 204, 0.16)' : 'transparent', boxShadow: viewMode === 'PREDICTIONS' ? '0 0 10px rgba(0, 147, 204, 0.25)' : 'none' }}
+                className={`toggle-btn ${viewMode === 'PREDICTIONS' ? 'active-hist' : ''}`}
                 onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'PREDICTIONS' })}
               >
-                PREDICTIONS
+                Predictions
               </button>
             </div>
           </div>
+
+          <Header
+            sessionName={DASHBOARD_TITLE}
+            isLive={viewMode === 'LIVE' && isLive}
+          />
+          <TelemetryRibbon session={session} viewMode={viewMode} live={viewMode === 'LIVE' && isLive} signalLabel={viewMode === 'LIVE' ? 'SIGNAL: LIVE PACKET' : 'SIGNAL: STABLE'} />
 
           {/* Historical Race Selectors */}
           {viewMode === 'HISTORICAL' && (
@@ -173,61 +224,122 @@ function App() {
                 </div>
             </div>
           </div>
-        ) : errorMsg ? (
+        ) : dataState === 'offline' && !session ? (
           <div className="glass-panel" style={{ padding: '2rem', textAlign: 'center', borderColor: 'var(--accent-f1)' }}>
             <AlertCircle size={48} color="var(--accent-f1)" style={{ margin: '0 auto 1rem auto' }} />
             <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>DATA UNAVAILABLE</h2>
             <p style={{ color: 'var(--text-secondary)', maxWidth: '600px', margin: '0 auto', lineHeight: '1.6' }}>
-              {errorMsg}
+              {errorMsg ?? 'Telemetry backend is offline. Showing limited UI until recovery.'}
             </p>
           </div>
         ) : (
           <main style={{ position: 'relative', width: '100%', minHeight: '100vh', pointerEvents: 'none' }}>
-            {/* HUD WIDGETS LAYER */}
-            <div style={{ pointerEvents: 'auto' }}>
-              <div style={{ position: 'fixed', top: '1rem', right: '1rem', pointerEvents: 'none', zIndex: 50 }}>
-                <div className="live-indicator" style={{ backdropFilter: 'blur(8px)' }}>
-                  <div className="pulsing-dot" />
-                  <span className="live-text">SIGNAL: NOMINAL</span>
+            {(dataState === 'degraded' || dataState === 'offline') && (
+              <div style={{ pointerEvents: 'auto', padding: '0 1rem' }}>
+                <div className="glass-panel" style={{ borderColor: 'rgba(244, 180, 0, 0.45)', marginBottom: '1rem', padding: '0.85rem 1rem' }}>
+                  <strong style={{ color: '#f4b400', fontSize: '0.85rem', letterSpacing: '0.08em' }}>DATA MODE: {dataState.toUpperCase()}</strong>
+                  {warnings.length > 0 && (
+                    <p style={{ marginTop: '0.45rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                      {warnings[0]}
+                    </p>
+                  )}
                 </div>
               </div>
-
-              <DraggableWidget id="leaderboard" title={viewMode === 'LIVE' ? 'LIVE TIMING & INTERVALS' : 'RACE CLASSIFICATION'} defaultX={20} defaultY={80}>
-                {leaderboard && (
-                  <LiveTiming
-                    data={leaderboard}
-                    title=""
-                    liveStatus={viewMode === 'LIVE' ? liveStatus : 'LIVE'}
-                    nextSession={viewMode === 'LIVE' ? nextSchedule : null}
-                  />
-                )}
-              </DraggableWidget>
-
-              <DraggableWidget id="focused_driver" title="DRIVER FOCUS" defaultX={window.innerWidth - 380} defaultY={80}>
-                {session && (
-                  <MaxTracker 
-                    currentPos={leaderboard?.find(d => d.name_acronym === 'VER')?.position || null}
-                    gap={leaderboard?.find(d => d.name_acronym === 'VER')?.date || null}
-                    stats={maxStats}
-                  />
-                )}
-              </DraggableWidget>
-
-              <DraggableWidget id="session_info" title="SESSION" defaultX={window.innerWidth - 380} defaultY={320}>
-                {session && <SessionInfo session={session} />}
-              </DraggableWidget>
-
-              {/* LIVE SYNC STATUS CARD */}
-              <DraggableWidget id="data_pipeline" title="PIPELINE" defaultX={window.innerWidth - 380} defaultY={480}>
-                <div style={{ width: '320px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--accent-cyan)' }}>
-                    {viewMode === 'LIVE' ? 'SYNCHRONIZED' : 'ARCHIVED'}
-                  </span>
-                  <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                    LATENCY: 42MS
-                  </span>
+            )}
+            {/* HUD WIDGETS LAYER */}
+            <div style={{ pointerEvents: 'auto' }}>
+              {!isNarrowViewport && (
+                <div style={{ position: 'fixed', top: '1rem', right: '1rem', pointerEvents: 'none', zIndex: 50 }}>
+                  <div className="live-indicator" style={{ backdropFilter: 'blur(8px)' }}>
+                    <div className="pulsing-dot" />
+                    <span className="live-text">SIGNAL: NOMINAL</span>
+                  </div>
                 </div>
-              </DraggableWidget>
+              )}
+
+              {isNarrowViewport ? (
+                <div className="mobile-hud-stack">
+                  <div className="glass-panel" style={{ padding: '0.9rem' }}>
+                    {leaderboard && (
+                      <LiveTiming
+                        data={leaderboard}
+                        title=""
+                        liveStatus={viewMode === 'LIVE' ? liveStatus : 'LIVE'}
+                        nextSession={viewMode === 'LIVE' ? nextSchedule : null}
+                      />
+                    )}
+                  </div>
+
+                  <div className="glass-panel" style={{ padding: '0.9rem' }}>
+                    <NextRaceIntelligence nextSession={nextSchedule} compact />
+                  </div>
+
+                  <div className="glass-panel" style={{ padding: '0.9rem' }}>
+                    {session && (
+                      <MaxTracker
+                        currentPos={leaderboard?.find((d) => d.name_acronym === 'VER')?.position || null}
+                        gap={leaderboard?.find((d) => d.name_acronym === 'VER')?.date || null}
+                        stats={maxStats}
+                      />
+                    )}
+                  </div>
+
+                  <div className="glass-panel" style={{ padding: '0.9rem' }}>
+                    {session && <SessionInfo session={session} />}
+                  </div>
+
+                  <div className="glass-panel" style={{ padding: '0.9rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--accent-cyan)' }}>
+                        {viewMode === 'LIVE' ? 'SYNCHRONIZED' : 'ARCHIVED'}
+                      </span>
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>LATENCY: 42MS</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <DraggableWidget id="leaderboard" title={viewMode === 'LIVE' ? 'LIVE TIMING & INTERVALS' : 'RACE CLASSIFICATION'} defaultX={20} defaultY={80}>
+                    {leaderboard && (
+                      <LiveTiming
+                        data={leaderboard}
+                        title=""
+                        liveStatus={viewMode === 'LIVE' ? liveStatus : 'LIVE'}
+                        nextSession={viewMode === 'LIVE' ? nextSchedule : null}
+                      />
+                    )}
+                  </DraggableWidget>
+
+                  <DraggableWidget id="next_race_intelligence" title="NEXT RACE INTELLIGENCE" defaultX={390} defaultY={80}>
+                    <NextRaceIntelligence nextSession={nextSchedule} />
+                  </DraggableWidget>
+
+                  <DraggableWidget id="focused_driver" title="DRIVER FOCUS" defaultX={rightRailX} defaultY={80}>
+                    {session && (
+                      <MaxTracker
+                        currentPos={leaderboard?.find((d) => d.name_acronym === 'VER')?.position || null}
+                        gap={leaderboard?.find((d) => d.name_acronym === 'VER')?.date || null}
+                        stats={maxStats}
+                      />
+                    )}
+                  </DraggableWidget>
+
+                  <DraggableWidget id="session_info" title="SESSION" defaultX={rightRailX} defaultY={320}>
+                    {session && <SessionInfo session={session} />}
+                  </DraggableWidget>
+
+                  <DraggableWidget id="data_pipeline" title="PIPELINE" defaultX={rightRailX} defaultY={480}>
+                    <div style={{ width: '320px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--accent-cyan)' }}>
+                        {viewMode === 'LIVE' ? 'SYNCHRONIZED' : 'ARCHIVED'}
+                      </span>
+                      <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                        LATENCY: 42MS
+                      </span>
+                    </div>
+                  </DraggableWidget>
+                </>
+              )}
             </div>
           </main>
         )}

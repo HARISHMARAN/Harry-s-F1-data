@@ -1,0 +1,45 @@
+{
+  "generated_at": "2026-04-19",
+  "datasets": [
+    {
+      "surface": "Live telemetry ribbon and leaderboard",
+      "source": "OpenF1 via /api/telemetry",
+      "freshness": "~5s cache with stale-while-revalidate",
+      "fallback": "Last known cached payload or offline synthetic shell",
+      "synthetic_when_fallback": true
+    },
+    {
+      "surface": "Replay session list",
+      "source": "OpenF1 sessions via /api/sessions",
+      "freshness": "60s fresh, 15m stale window",
+      "fallback": "Last known session cache; demo sessions when upstream unavailable",
+      "synthetic_when_fallback": true
+    },
+    {
+      "surface": "Replay positions/laps core",
+      "source": "OpenF1 replay route /api/replay/:year/:round?telemetry=0",
+      "freshness": "10m fresh, 3h stale window",
+      "fallback": "Stale replay cache or generated demo replay",
+      "synthetic_when_fallback": true
+    },
+    {
+      "surface": "Replay DRS overlays and lap DRS",
+      "source": "On-demand /api/replay/:year/:round/driver/:driver",
+      "freshness": "Per request",
+      "fallback": "No DRS overlay for selected driver",
+      "synthetic_when_fallback": false
+    },
+    {
+      "surface": "Prediction cards",
+      "source": "Next API or Supabase Edge functions",
+      "freshness": "No-store",
+      "fallback": "Feature should be hidden if provider unavailable",
+      "synthetic_when_fallback": false
+    }
+  ],
+  "policy": {
+    "hide_if_unsourced": true,
+    "mark_synthetic_values": true,
+    "warn_on_degraded_mode": true
+  }
+}

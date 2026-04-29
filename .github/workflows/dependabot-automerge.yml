@@ -1,4 +1,4 @@
-name: Dependabot Auto-Merge
+name: Dependabot Review Gate
 
 on:
   pull_request:
@@ -6,17 +6,16 @@ on:
 
 permissions:
   pull-requests: write
-  contents: write
 
 jobs:
-  dependabot-merge:
+  dependabot-review-gate:
     runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]'
     steps:
-      - name: Approve and enable auto-merge
+      - name: Mark dependency PR for manual review
         run: |
-          gh pr review "$PR_NUMBER" --approve
-          gh pr merge "$PR_NUMBER" --auto --squash
+          gh pr edit "$PR_NUMBER" --add-label "dependencies"
+          gh pr comment "$PR_NUMBER" --body "Dependency updates require manual review and CI pass before merge. Auto-merge is disabled by policy."
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

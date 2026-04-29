@@ -36,11 +36,12 @@ export default function ChatView() {
         return;
       }
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 4000);
-
-        const res = await fetch(`${apiBase}/health`, { signal: controller.signal });
-        clearTimeout(timeout);
+        const timeoutMs = 4000;
+        const healthResponse = fetch(`${apiBase}/health`);
+        const timeoutResponse = new Promise<Response>((_, reject) =>
+          setTimeout(() => reject(new Error(`Health timeout after ${timeoutMs}ms`)), timeoutMs)
+        );
+        const res = await Promise.race([healthResponse, timeoutResponse]);
 
         if (!res.ok) {
           if (isMounted) setApiStatus('down');

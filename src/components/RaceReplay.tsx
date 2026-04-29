@@ -8,11 +8,11 @@ import {
   Minimize2,
   Pause,
   Play,
-  Radio,
   RotateCcw,
 } from 'lucide-react';
-import { fetchReplayDataset, fetchReplaySessions } from '../services/replay';
+import { fetchDriverReplayTelemetry, fetchReplayDataset, fetchReplaySessions } from '../services/replay';
 import { buildTrackPath, getTrackPointsForCircuit, normalizeTrack } from '../services/trackLayout';
+import RaceIntelligencePanel from './RaceIntelligencePanel';
 import type {
   ReplayDataset,
   ReplayDrsZone,
@@ -34,9 +34,10 @@ interface ReplayMarker {
   y: number;
   compound: string | null;
   drsUsed: boolean | null;
-  drsActiveNow: boolean;
+  drsActiveNow: boolean | null;
   sectorPercent: number;
   lapDuration: number | null;
+  lapDateStart: string | null;
   sectorTimes: [number | null, number | null, number | null];
 }
 
@@ -44,6 +45,8 @@ const TRACK_WIDTH = 860;
 const TRACK_HEIGHT = 560;
 const REPLAY_SPEEDS = [0.5, 1, 2, 4];
 const START_SEQUENCE_MS = 5000;
+const REPLAY_ROW_HEIGHT = 74;
+const REPLAY_TABLE_VIEWPORT_ROWS = 7;
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
@@ -449,25 +452,97 @@ function resolveTrackPoints(dataset: ReplayDataset | null): ReplayTrackPoint[] {
   return getTrackPointsForCircuit(seed);
 }
 
-function getLapState(laps: ReplayLap[], replayTime: number) {
-  if (laps.length === 0) {
+type PreparedLapRow = {
+  row: ReplayLap;
+  startMs: number;
+  endMs: number;
+};
+
+type ReplayDriverIndex = {
+  lapRows: PreparedLapRow[];
+  lapStartMs: number[];
+  positionRows: ReplayPositionSample[];
+  positionMs: number[];
+};
+
+function parseIsoMs(value: string | null | undefined) {
+  const parsed = Date.parse(value ?? '');
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function latestIndexFromMs(times: number[], replayTime: number) {
+  let low = 0;
+  let high = times.length - 1;
+  let answer = -1;
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const sampleTime = times[mid];
+    if (sampleTime <= replayTime) {
+      answer = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  return answer;
+}
+
+function buildReplayIndex(dataset: ReplayDataset) {
+  const lapsByDriver = groupByDriver(dataset.laps);
+  const positionsByDriver = groupByDriver(dataset.positions);
+  const index = new Map<number, ReplayDriverIndex>();
+
+  dataset.drivers.forEach((driver) => {
+    const rawLaps = (lapsByDriver.get(driver.driver_number) ?? [])
+      .map((row) => {
+        const startMs = parseIsoMs(row.date_start);
+        return startMs === null ? null : { row, startMs };
+      })
+      .filter((entry): entry is { row: ReplayLap; startMs: number } => Boolean(entry))
+      .sort((left, right) => left.startMs - right.startMs);
+
+    const lapRows = rawLaps.map((entry, idx) => {
+      const startMs = entry.startMs;
+      const nextStart = rawLaps[idx + 1]?.startMs ?? null;
+      const endMs = nextStart ?? (entry.row.lap_duration ? startMs + entry.row.lap_duration * 1000 : startMs + 90_000);
+      return { row: entry.row, startMs, endMs };
+    });
+
+    const positionRows = (positionsByDriver.get(driver.driver_number) ?? [])
+      .map((row) => {
+        const positionMs = parseIsoMs(row.date);
+        return positionMs === null ? null : { row, positionMs };
+      })
+      .filter((entry): entry is { row: ReplayPositionSample; positionMs: number } => Boolean(entry))
+      .sort((left, right) => left.positionMs - right.positionMs);
+
+    index.set(driver.driver_number, {
+      lapRows,
+      lapStartMs: lapRows.map((entry) => entry.startMs),
+      positionRows: positionRows.map((entry) => entry.row),
+      positionMs: positionRows.map((entry) => entry.positionMs),
+    });
+  });
+
+  return index;
+}
+
+function getLapState(laps: PreparedLapRow[], lapStartMs: number[], replayTime: number) {
+  if (laps.length === 0 || lapStartMs.length === 0) {
     return { lapNumber: 0, lapFraction: 0, globalProgress: 0, compound: null, drsUsed: null, lapRow: null as ReplayLap | null };
   }
 
-  const currentLapIndex = findLatestIndexByTime(laps, replayTime, (lap) => Date.parse(lap.date_start));
+  const currentLapIndex = latestIndexFromMs(lapStartMs, replayTime);
 
   if (currentLapIndex === -1) {
     return { lapNumber: 0, lapFraction: 0, globalProgress: 0, compound: null, drsUsed: null, lapRow: null as ReplayLap | null };
   }
 
   const currentLap = laps[currentLapIndex];
-  const nextLap = laps[currentLapIndex + 1];
-  const lapStart = Date.parse(currentLap.date_start);
-  const lapEnd = nextLap
-    ? Date.parse(nextLap.date_start)
-    : currentLap.lap_duration
-      ? lapStart + currentLap.lap_duration * 1000
-      : lapStart + 90_000;
+  const lapStart = currentLap.startMs;
+  const lapEnd = currentLap.endMs;
   const lapFraction = clamp(
     (replayTime - lapStart) / Math.max(lapEnd - lapStart, 1000),
     0,
@@ -475,21 +550,17 @@ function getLapState(laps: ReplayLap[], replayTime: number) {
   );
 
   return {
-    lapNumber: currentLap.lap_number,
+    lapNumber: currentLap.row.lap_number,
     lapFraction,
-    globalProgress: currentLap.lap_number - 1 + lapFraction,
-    compound: currentLap.compound ?? null,
-    drsUsed: currentLap.drs_used ?? null,
-    lapRow: currentLap,
+    globalProgress: currentLap.row.lap_number - 1 + lapFraction,
+    compound: currentLap.row.compound ?? null,
+    drsUsed: currentLap.row.drs_used ?? null,
+    lapRow: currentLap.row,
   };
 }
 
-function getPositionAtTime(positions: ReplayPositionSample[], replayTime: number) {
-  const currentIndex = findLatestIndexByTime(
-    positions,
-    replayTime,
-    (positionSample) => Date.parse(positionSample.date),
-  );
+function getPositionAtTime(positions: ReplayPositionSample[], positionMs: number[], replayTime: number) {
+  const currentIndex = latestIndexFromMs(positionMs, replayTime);
 
   return currentIndex === -1 ? null : positions[currentIndex].position;
 }
@@ -506,25 +577,31 @@ function getLatestRaceControlMessage(messages: ReplayRaceControlMessage[], repla
 
 function buildReplayMarkers(
   dataset: ReplayDataset,
+  replayIndex: Map<number, ReplayDriverIndex>,
   normalizedTrack: ReplayTrackPoint[],
   replayTime: number,
+  driverDrsZones: Map<number, ReplayDrsZone[]>,
 ) {
-  const lapsByDriver = groupByDriver(dataset.laps);
-  const positionsByDriver = groupByDriver(dataset.positions);
   const markers: ReplayMarker[] = [];
 
   dataset.drivers.forEach((driver) => {
-    const lapRows = lapsByDriver.get(driver.driver_number) ?? [];
-    const positionRows = positionsByDriver.get(driver.driver_number) ?? [];
-    const lapState = getLapState(lapRows, replayTime);
+    const indexed = replayIndex.get(driver.driver_number);
+    const lapRows = indexed?.lapRows ?? [];
+    const lapStartMs = indexed?.lapStartMs ?? [];
+    const positionRows = indexed?.positionRows ?? [];
+    const positionMs = indexed?.positionMs ?? [];
+    const lapState = getLapState(lapRows, lapStartMs, replayTime);
     const markerPoint = pointAtFraction(normalizedTrack, lapState.lapFraction);
-    const drsActiveNow = (dataset.drs_zones ?? []).some(
-      (zone) => lapState.lapFraction >= zone.start_fraction && lapState.lapFraction <= zone.end_fraction,
-    );
+    const driverZones = driverDrsZones.get(driver.driver_number) ?? [];
+    const drsActiveNow = driverZones.length
+      ? driverZones.some(
+          (zone) => lapState.lapFraction >= zone.start_fraction && lapState.lapFraction <= zone.end_fraction,
+        )
+      : null;
 
     markers.push({
       driver,
-      position: getPositionAtTime(positionRows, replayTime),
+      position: getPositionAtTime(positionRows, positionMs, replayTime),
       lapNumber: lapState.lapNumber,
       lapFraction: lapState.lapFraction,
       globalProgress: lapState.globalProgress,
@@ -535,6 +612,7 @@ function buildReplayMarkers(
       drsActiveNow,
       sectorPercent: lapState.lapFraction,
       lapDuration: lapState.lapRow?.lap_duration ?? null,
+      lapDateStart: lapState.lapRow?.date_start ?? null,
       sectorTimes: [
         lapState.lapRow?.duration_sector_1 ?? null,
         lapState.lapRow?.duration_sector_2 ?? null,
@@ -555,7 +633,14 @@ function buildReplayMarkers(
 function pickDefaultSession(sessions: ReplaySessionSummary[]) {
   const now = Date.now();
 
-  return sessions.find((session) => Date.parse(session.date_end) <= now) ?? sessions[0] ?? null;
+  return (
+    sessions.find((session) => {
+      const sessionEnd = session.date_end ?? session.date_start;
+      return Date.parse(sessionEnd) <= now;
+    }) ??
+    sessions[0] ??
+    null
+  );
 }
 
 interface RaceReplayProps {
@@ -564,11 +649,16 @@ interface RaceReplayProps {
 
 type ReplayLayoutMode = 'balanced' | 'track-focus' | 'data-focus';
 
-function StartLightStrip({ replayMs }: { replayMs: number }) {
+function StartLightStrip({ replayMs, motionStartMs }: { replayMs: number; motionStartMs: number }) {
   const startWindowMs = 5000;
   const lightCount = 5;
-  const activeLights = replayMs <= startWindowMs ? Math.max(0, Math.min(lightCount, Math.ceil((replayMs / startWindowMs) * lightCount))) : lightCount;
-  const isGo = replayMs > startWindowMs;
+  const sequenceStartMs = Math.max(0, motionStartMs - startWindowMs);
+  const sequenceProgressMs = Math.max(0, replayMs - sequenceStartMs);
+  const activeLights =
+    replayMs < motionStartMs
+      ? Math.max(0, Math.min(lightCount, Math.ceil((sequenceProgressMs / startWindowMs) * lightCount)))
+      : lightCount;
+  const isGo = replayMs >= motionStartMs;
 
   return (
     <div
@@ -622,6 +712,17 @@ function StartLightStrip({ replayMs }: { replayMs: number }) {
   );
 }
 
+function getStartCuePhase(replayMs: number, motionStartMs: number) {
+  const startWindowMs = 5000;
+  const sequenceStartMs = Math.max(0, motionStartMs - startWindowMs);
+
+  if (replayMs < sequenceStartMs) return 0;
+  if (replayMs >= motionStartMs) return 6;
+
+  const phase = Math.floor((replayMs - sequenceStartMs) / (startWindowMs / 5)) + 1;
+  return Math.max(1, Math.min(5, phase));
+}
+
 export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
   const currentYear = new Date().getFullYear();
   const replayYears = [currentYear, currentYear - 1, currentYear - 2];
@@ -643,6 +744,24 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
   const [zoom, setZoom] = useState<number>(1);
   const [demoMode, setDemoMode] = useState<boolean>(false);
   const [layoutMode, setLayoutMode] = useState<ReplayLayoutMode>('balanced');
+  const [reloadNonce, setReloadNonce] = useState<number>(0);
+  const [driverDrsZones, setDriverDrsZones] = useState<Map<number, ReplayDrsZone[]>>(new Map());
+  const [driverLapDrs, setDriverLapDrs] = useState<Map<string, boolean>>(new Map());
+  const [tableScrollTop, setTableScrollTop] = useState(0);
+  const [replayMetrics, setReplayMetrics] = useState<{
+    firstPlayableMs: number | null;
+    averageFps: number | null;
+    frameDrops: number;
+  }>({ firstPlayableMs: null, averageFps: null, frameDrops: 0 });
+  const replayLoadStartedRef = useRef<number | null>(null);
+  const startCueAudioRef = useRef<AudioContext | null>(null);
+  const lastStartCuePhaseRef = useRef<number>(0);
+  const frameStatsRef = useRef<{ startTs: number; frames: number; dropped: number; lastPushTs: number }>({
+    startTs: 0,
+    frames: 0,
+    dropped: 0,
+    lastPushTs: 0,
+  });
 
   const demoSessions = useMemo<ReplaySessionSummary[]>(() => [
     {
@@ -813,6 +932,12 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
       })),
       positions,
       race_control: [],
+      stints: [],
+      pit_stops: [],
+      weather: [],
+      team_radio: [],
+      tyre_per_lap: [],
+      strategy_summaries: [],
       track,
       total_laps: totalLaps,
       start_time: new Date(baseTime).toISOString(),
@@ -887,6 +1012,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
       try {
         setLoadingReplay(true);
         setErrorMsg(null);
+        replayLoadStartedRef.current = performance.now();
         setLoadingMessage('Preparing race replay...');
         const replayDataset = await fetchReplayDataset(sessionToLoad, (message) => {
           if (!ignore) {
@@ -903,6 +1029,15 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
         setIsPlaying(false);
         setDemoMode(false);
         setSelectedDriverNumber(replayDataset.track.source_driver_number);
+        setDriverDrsZones(new Map());
+        setDriverLapDrs(new Map());
+        setReplayMetrics((prev) => ({
+          ...prev,
+          firstPlayableMs:
+            replayLoadStartedRef.current !== null
+              ? Math.round(performance.now() - replayLoadStartedRef.current)
+              : prev.firstPlayableMs,
+        }));
       } catch {
         if (!ignore) {
           setDemoMode(true);
@@ -911,6 +1046,8 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
           setReplayMs(0);
           setIsPlaying(false);
           setSelectedDriverNumber(null);
+          setDriverDrsZones(new Map());
+          setDriverLapDrs(new Map());
         }
       } finally {
         if (!ignore) {
@@ -924,7 +1061,50 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
     return () => {
       ignore = true;
     };
-  }, [selectedSessionKey, sessions]);
+  }, [selectedSessionKey, sessions, reloadNonce]);
+
+  useEffect(() => {
+    if (!dataset || selectedDriverNumber === null) return;
+    const driverNumber = selectedDriverNumber;
+    const sessionSummary = dataset.session;
+    if (driverDrsZones.has(driverNumber)) return;
+
+    let ignore = false;
+
+    async function loadDriverTelemetry() {
+      try {
+        const driverTelemetry = await fetchDriverReplayTelemetry(sessionSummary, driverNumber);
+        if (ignore) return;
+
+        setDriverDrsZones((prev) => {
+          const next = new Map(prev);
+          next.set(driverNumber, driverTelemetry.drs_zones ?? []);
+          return next;
+        });
+
+        setDriverLapDrs((prev) => {
+          const next = new Map(prev);
+          (driverTelemetry.lap_drs ?? []).forEach((lap) => {
+            next.set(`${driverNumber}:${lap.lap_number}:${lap.date_start ?? ''}`, Boolean(lap.drs_used));
+          });
+          return next;
+        });
+      } catch {
+        if (ignore) return;
+        setDriverDrsZones((prev) => {
+          const next = new Map(prev);
+          next.set(driverNumber, []);
+          return next;
+        });
+      }
+    }
+
+    loadDriverTelemetry();
+
+    return () => {
+      ignore = true;
+    };
+  }, [dataset, selectedDriverNumber, driverDrsZones]);
 
   const replayDurationMs = dataset
     ? Math.max(Date.parse(dataset.end_time) - Date.parse(dataset.start_time), 1000)
@@ -933,13 +1113,53 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
     () => (dataset ? normalizeTrack(resolveTrackPoints(dataset)) : []),
     [dataset],
   );
+  const replayIndex = useMemo(
+    () => (dataset ? buildReplayIndex(dataset) : new Map<number, ReplayDriverIndex>()),
+    [dataset],
+  );
   const trackPath = useMemo(() => buildTrackPath(normalizedTrack), [normalizedTrack]);
   const motionReplayMs = Math.max(0, replayMs - START_SEQUENCE_MS);
   const controlReplayTime = dataset ? Date.parse(dataset.start_time) + replayMs : 0;
   const currentReplayTime = dataset ? Date.parse(dataset.start_time) + motionReplayMs : 0;
+  const motionStartMs = useMemo(() => {
+    if (!dataset) return START_SEQUENCE_MS;
+
+    let firstLapStartMs = Number.POSITIVE_INFINITY;
+    replayIndex.forEach((driverIndex) => {
+      if (driverIndex.lapStartMs.length > 0) {
+        firstLapStartMs = Math.min(firstLapStartMs, driverIndex.lapStartMs[0]);
+      }
+    });
+
+    if (!Number.isFinite(firstLapStartMs)) {
+      return START_SEQUENCE_MS;
+    }
+
+    const datasetStartMs = Date.parse(dataset.start_time);
+    const firstLapOffsetMs = Math.max(0, firstLapStartMs - datasetStartMs);
+    return START_SEQUENCE_MS + firstLapOffsetMs;
+  }, [dataset, replayIndex]);
+  const startCuePhase = useMemo(() => getStartCuePhase(replayMs, motionStartMs), [replayMs, motionStartMs]);
+  const activeDrsZones = useMemo(() => {
+    if (!dataset) return [] as ReplayDrsZone[];
+    if (selectedDriverNumber && driverDrsZones.has(selectedDriverNumber)) {
+      return driverDrsZones.get(selectedDriverNumber) ?? [];
+    }
+    return dataset.drs_zones ?? [];
+  }, [dataset, selectedDriverNumber, driverDrsZones]);
   const markers = useMemo(
-    () => (dataset ? buildReplayMarkers(dataset, normalizedTrack, currentReplayTime) : []),
-    [dataset, normalizedTrack, currentReplayTime],
+    () =>
+      dataset
+        ? buildReplayMarkers(dataset, replayIndex, normalizedTrack, currentReplayTime, driverDrsZones).map((marker) => {
+            const lapDrsKey = `${marker.driver.driver_number}:${marker.lapNumber}:${marker.lapDateStart ?? ''}`;
+            const derivedDrsUsed = driverLapDrs.has(lapDrsKey) ? driverLapDrs.get(lapDrsKey) ?? null : marker.drsUsed;
+            return {
+              ...marker,
+              drsUsed: derivedDrsUsed,
+            };
+          })
+        : [],
+    [dataset, replayIndex, normalizedTrack, currentReplayTime, driverDrsZones, driverLapDrs],
   );
   const currentRaceControl = dataset
     ? getLatestRaceControlMessage(dataset.race_control, controlReplayTime)
@@ -964,6 +1184,19 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
   const isSafetyCarActive = isSafetyCarMessage(currentRaceControl);
   const selectedDriverTeam = focusedDriver?.driver.team_name ?? '';
   const isFerrariSelected = /ferrari/i.test(selectedDriverTeam);
+  const shouldVirtualizeTable = markers.length > 16;
+  const virtualWindowSize = REPLAY_TABLE_VIEWPORT_ROWS + 3;
+  const virtualStartIndex = shouldVirtualizeTable
+    ? Math.max(0, Math.floor(tableScrollTop / REPLAY_ROW_HEIGHT) - 1)
+    : 0;
+  const virtualEndIndex = shouldVirtualizeTable
+    ? Math.min(markers.length, virtualStartIndex + virtualWindowSize)
+    : markers.length;
+  const visibleMarkers = markers.slice(virtualStartIndex, virtualEndIndex);
+  const virtualTopPad = shouldVirtualizeTable ? virtualStartIndex * REPLAY_ROW_HEIGHT : 0;
+  const virtualBottomPad = shouldVirtualizeTable
+    ? Math.max(0, (markers.length - virtualEndIndex) * REPLAY_ROW_HEIGHT)
+    : 0;
 
   useEffect(() => {
     if (!dataset || !isPlaying) {
@@ -976,6 +1209,13 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
       return;
     }
 
+    frameStatsRef.current = {
+      startTs: performance.now(),
+      frames: 0,
+      dropped: 0,
+      lastPushTs: performance.now(),
+    };
+
     const tick = (frameTime: number) => {
       if (lastFrameRef.current === null) {
         lastFrameRef.current = frameTime;
@@ -983,6 +1223,20 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
 
       const elapsed = frameTime - lastFrameRef.current;
       lastFrameRef.current = frameTime;
+      frameStatsRef.current.frames += 1;
+      if (elapsed > 34) {
+        frameStatsRef.current.dropped += 1;
+      }
+
+      if (frameTime - frameStatsRef.current.lastPushTs >= 1000) {
+        const totalSeconds = Math.max((frameTime - frameStatsRef.current.startTs) / 1000, 0.001);
+        setReplayMetrics((prev) => ({
+          ...prev,
+          averageFps: Number((frameStatsRef.current.frames / totalSeconds).toFixed(1)),
+          frameDrops: frameStatsRef.current.dropped,
+        }));
+        frameStatsRef.current.lastPushTs = frameTime;
+      }
 
       setReplayMs((currentValue) => {
         const nextValue = Math.min(currentValue + elapsed * playbackSpeed, replayDurationMs);
@@ -1010,6 +1264,100 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
     };
   }, [dataset, isPlaying, playbackSpeed, replayDurationMs]);
 
+  useEffect(() => {
+    if (!dataset) return;
+
+    const currentPhase = startCuePhase;
+    const previousPhase = lastStartCuePhaseRef.current;
+
+    if (!isPlaying) {
+      lastStartCuePhaseRef.current = currentPhase;
+      return;
+    }
+
+    if (currentPhase < previousPhase) {
+      lastStartCuePhaseRef.current = currentPhase;
+      return;
+    }
+
+    if (currentPhase === previousPhase) return;
+
+    const AudioCtor =
+      typeof window !== 'undefined'
+        ? (window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)
+        : undefined;
+    if (!AudioCtor) {
+      lastStartCuePhaseRef.current = currentPhase;
+      return;
+    }
+
+    const audioContext = startCueAudioRef.current ?? new AudioCtor();
+    startCueAudioRef.current = audioContext;
+    if (audioContext.state === 'suspended') {
+      void audioContext.resume();
+    }
+
+    const playCue = (kind: 'light' | 'go', phase: number) => {
+      const masterGain = audioContext.createGain();
+      masterGain.gain.value = 0.9;
+      masterGain.connect(audioContext.destination);
+
+      const now = audioContext.currentTime;
+
+      if (kind === 'light') {
+        const stepFreq = [660, 710, 760, 815, 880];
+        const base = stepFreq[Math.max(0, Math.min(stepFreq.length - 1, phase - 1))];
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(base, now);
+        osc.frequency.exponentialRampToValueAtTime(base * 1.03, now + 0.08);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.08, now + 0.004);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.082);
+        osc.connect(gain);
+        gain.connect(masterGain);
+        osc.start(now);
+        osc.stop(now + 0.095);
+        return;
+      }
+
+      const low = audioContext.createOscillator();
+      const high = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      low.type = 'sawtooth';
+      high.type = 'triangle';
+      low.frequency.setValueAtTime(980, now);
+      low.frequency.exponentialRampToValueAtTime(1120, now + 0.19);
+      high.frequency.setValueAtTime(1320, now);
+      high.frequency.exponentialRampToValueAtTime(1480, now + 0.19);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.13, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+      low.connect(gain);
+      high.connect(gain);
+      gain.connect(masterGain);
+      low.start(now);
+      high.start(now);
+      low.stop(now + 0.24);
+      high.stop(now + 0.24);
+    };
+
+    for (let phase = previousPhase + 1; phase <= currentPhase; phase += 1) {
+      if (phase >= 1 && phase <= 5) {
+        playCue('light', phase);
+      } else if (phase === 6) {
+        playCue('go', phase);
+      }
+    }
+
+    lastStartCuePhaseRef.current = currentPhase;
+  }, [dataset, isPlaying, startCuePhase]);
+
+  useEffect(() => {
+    setTableScrollTop(0);
+  }, [selectedSessionKey, markers.length]);
+
   const replayHeader = dataset
     ? `${dataset.session.country_name} ${dataset.session.year} Replay`
     : 'Race Replay';
@@ -1035,9 +1383,9 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
               : undefined,
           }}
         >
-          <DrsZoneRail zones={dataset?.drs_zones ?? []} currentFraction={focusedDriver?.lapFraction ?? 0} />
+          <DrsZoneRail zones={activeDrsZones} currentFraction={focusedDriver?.lapFraction ?? 0} />
           <div style={{ position: 'absolute', top: '64px', left: '14px', zIndex: 5 }}>
-            <StartLightStrip replayMs={replayMs} />
+            <StartLightStrip replayMs={replayMs} motionStartMs={motionStartMs} />
           </div>
           
           <div style={{ position: 'absolute', bottom: '30px', right: '30px', display: 'flex', gap: '8px', zIndex: 5 }}>
@@ -1291,7 +1639,18 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                 <Minimize2 size={12} /> Data Focus
               </button>
             </div>
-            <StartLightStrip replayMs={replayMs} />
+            <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span className="speed-chip" style={{ fontSize: '0.66rem' }}>
+                First Playable: {replayMetrics.firstPlayableMs !== null ? `${replayMetrics.firstPlayableMs}ms` : '--'}
+              </span>
+              <span className="speed-chip" style={{ fontSize: '0.66rem' }}>
+                FPS: {replayMetrics.averageFps !== null ? replayMetrics.averageFps.toFixed(1) : '--'}
+              </span>
+              <span className="speed-chip" style={{ fontSize: '0.66rem' }}>
+                Frame Drops: {replayMetrics.frameDrops}
+              </span>
+              <StartLightStrip replayMs={replayMs} motionStartMs={motionStartMs} />
+            </div>
           </div>
         </div>
       )}
@@ -1307,6 +1666,40 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
           <AlertCircle size={44} color="var(--accent-f1)" style={{ margin: '0 auto 1rem auto' }} />
           <h2 style={{ marginBottom: '0.75rem' }}>Replay Unavailable</h2>
           <p style={{ color: 'var(--text-secondary)', maxWidth: '620px', margin: '0 auto' }}>{errorMsg}</p>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap', marginTop: '1rem' }}>
+            <button
+              type="button"
+              className="replay-button"
+              onClick={() => {
+                setErrorMsg(null);
+                setReloadNonce((value) => value + 1);
+              }}
+            >
+              Retry
+            </button>
+            <button
+              type="button"
+              className="replay-button replay-button-secondary"
+              onClick={() => {
+                const selectedSession = sessions.find((session) => session.session_key === selectedSessionKey);
+                if (!selectedSession) return;
+                setDataset(buildDemoDataset(selectedSession));
+                setDemoMode(true);
+                setErrorMsg(null);
+                setIsPlaying(false);
+                setReplayMs(0);
+              }}
+            >
+              Use Demo Data
+            </button>
+            <button
+              type="button"
+              className="replay-button replay-button-secondary"
+              onClick={() => setSelectedYear((year) => Math.max(year - 1, replayYears[replayYears.length - 1]))}
+            >
+              Change Season
+            </button>
+          </div>
         </div>
       ) : dataset ? (
         <div
@@ -1328,10 +1721,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
               : undefined,
           }}
         >
-            <DrsZoneRail zones={dataset.drs_zones ?? []} currentFraction={focusedDriver?.lapFraction ?? 0} />
-            <div style={{ position: 'absolute', top: '64px', left: '14px', zIndex: 5 }}>
-              <StartLightStrip replayMs={replayMs} />
-            </div>
+            <DrsZoneRail zones={activeDrsZones} currentFraction={focusedDriver?.lapFraction ?? 0} />
             <div className="panel-header" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <h2 className="panel-title" style={{ marginBottom: '0.35rem' }}>
@@ -1497,46 +1887,10 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div className="glass-panel" style={{ padding: '1.4rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '1rem' }}>
-                <Radio size={18} color={getFlagTone(currentRaceControl?.flag ?? null)} />
-                <h2 className="panel-title">Race Control</h2>
-              </div>
-              {currentRaceControl ? (
-                <div
-                  style={{
-                    background: isSafetyCarActive ? 'rgba(244, 180, 0, 0.09)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${isSafetyCarActive ? '#f4b400' : getFlagTone(currentRaceControl.flag)}`,
-                    borderRadius: '14px',
-                    padding: '1rem',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.55rem' }}>
-                    <span style={{ color: getFlagTone(currentRaceControl.flag), fontWeight: 800, letterSpacing: '0.08em' }}>
-                      {currentRaceControl.flag ?? currentRaceControl.category}
-                    </span>
-                    {isSafetyCarActive && (
-                      <span style={{ color: '#f4b400', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                        Safety Car Active
-                      </span>
-                    )}
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                      {new Date(currentRaceControl.date).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                      })}
-                    </span>
-                  </div>
-                  <p style={{ color: 'var(--text-primary)', lineHeight: 1.5 }}>{currentRaceControl.message}</p>
-                </div>
-              ) : (
-                <p style={{ color: 'var(--text-secondary)' }}>No race control message has been reached at the current replay point.</p>
-              )}
-            </div>
+          <div className="replay-side-stack">
+            <RaceIntelligencePanel dataset={dataset} selectedDriverNumber={selectedDriverNumber} />
 
-            <div className="glass-panel" style={{ padding: '1.4rem' }}>
+            <div className="glass-panel replay-side-card" style={{ padding: '1.15rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '1rem' }}>
                 <Gauge size={18} color="var(--accent-blue)" />
                 <h2 className="panel-title">Focused Driver</h2>
@@ -1597,13 +1951,18 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
               )}
             </div>
 
-            <div className="glass-panel" style={{ padding: '1.4rem', minHeight: 0 }}>
+            <div className="glass-panel replay-side-card" style={{ padding: '1.15rem', minHeight: 0 }}>
               <h2 className="panel-title" style={{ marginBottom: '1rem' }}>
                 Replay Leaderboard
               </h2>
 
-              <div className="replay-table">
-                {markers.map((marker) => (
+              <div
+                className="replay-table"
+                style={shouldVirtualizeTable ? { maxHeight: `${REPLAY_TABLE_VIEWPORT_ROWS * REPLAY_ROW_HEIGHT}px`, overflowY: 'auto' } : undefined}
+                onScroll={shouldVirtualizeTable ? (event) => setTableScrollTop(event.currentTarget.scrollTop) : undefined}
+              >
+                {shouldVirtualizeTable && <div style={{ height: virtualTopPad }} />}
+                {visibleMarkers.map((marker) => (
                   <button
                     key={marker.driver.driver_number}
                     type="button"
@@ -1656,6 +2015,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
                     <SectorBars progress={marker.sectorPercent} />
                   </button>
                 ))}
+                {shouldVirtualizeTable && <div style={{ height: virtualBottomPad }} />}
               </div>
             </div>
           </div>
@@ -1663,6 +2023,22 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
       ) : (
         <div className="glass-panel" style={{ padding: '2rem', textAlign: 'center' }}>
           <p style={{ color: 'var(--text-secondary)' }}>Select a completed race to load the replay.</p>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap', marginTop: '1rem' }}>
+            <button
+              type="button"
+              className="replay-button"
+              onClick={() => setReloadNonce((value) => value + 1)}
+            >
+              Retry Session Load
+            </button>
+            <button
+              type="button"
+              className="replay-button replay-button-secondary"
+              onClick={() => setSelectedYear((year) => Math.max(year - 1, replayYears[replayYears.length - 1]))}
+            >
+              Switch to Previous Season
+            </button>
+          </div>
         </div>
       )}
     </div>

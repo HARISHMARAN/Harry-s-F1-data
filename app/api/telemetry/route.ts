@@ -15,6 +15,7 @@ type TelemetryPayload =
   | (ReturnType<typeof buildTelemetryResponse> & {
       status: "live";
       next_session?: null;
+      warnings?: string[];
     })
   | {
       status: "no_live";
@@ -31,11 +32,15 @@ type TelemetryPayload =
         date_start: string | null;
         date_end: string | null;
       } | null;
+      warnings?: string[];
     };
+
+const FRESH_TTL_MS = 5_000;
+const STALE_TTL_MS = 60_000;
 
 let cachedPayload: TelemetryPayload | null = null;
 let lastFetchMs = 0;
-const CACHE_TTL_MS = 5000;
+let staleUntilMs = 0;
 let inFlight: Promise<TelemetryPayload> | null = null;
 
 async function fetchWithRetry<T>(fn: () => Promise<T>, maxAttempts = 3) {
@@ -54,71 +59,102 @@ async function fetchWithRetry<T>(fn: () => Promise<T>, maxAttempts = 3) {
   throw new Error("Retry attempts exhausted");
 }
 
+async function buildTelemetryPayload(): Promise<TelemetryPayload> {
+  const warnings: string[] = [];
+  const session = await fetchWithRetry(() => getLatestRaceSession());
+  if (!session) {
+    const nextSession = await fetchWithRetry(() => getNextRaceSession());
+    return {
+      status: "no_live",
+      session: "no-live-session",
+      timestamp: Math.floor(Date.now() / 1000),
+      drivers: [],
+      next_session: nextSession
+        ? {
+            session_key: nextSession.session_key,
+            session_name: nextSession.session_name,
+            session_type: nextSession.session_type ?? "Race",
+            country_name: nextSession.country_name ?? "",
+            location: nextSession.location ?? "",
+            circuit_short_name: nextSession.circuit_short_name ?? nextSession.session_name,
+            date_start: nextSession.date_start ?? null,
+            date_end: nextSession.date_end ?? null,
+          }
+        : null,
+      warnings,
+    };
+  }
+
+  const [drivers, intervals] = await Promise.all([
+    fetchWithRetry(() => getDrivers(session.session_key)),
+    fetchWithRetry(() => getIntervals(session.session_key)),
+  ]);
+
+  const lapNumbers = intervals
+    .map((interval) => interval.lap_number)
+    .filter((lap): lap is number => typeof lap === "number" && Number.isFinite(lap));
+
+  const maxLap = lapNumbers.length ? Math.max(...lapNumbers) : null;
+  const laps =
+    maxLap !== null
+      ? await fetchWithRetry(() => getLapsForLapNumbers(session.session_key, [maxLap, maxLap - 1]))
+      : await fetchWithRetry(() => getLaps(session.session_key));
+
+  return {
+    status: "live",
+    ...buildTelemetryResponse(session, drivers, laps, intervals),
+    warnings,
+  };
+}
+
+async function refreshTelemetry() {
+  if (!inFlight) {
+    inFlight = (async () => {
+      const payload = await buildTelemetryPayload();
+      const now = Date.now();
+      cachedPayload = payload;
+      lastFetchMs = now;
+      staleUntilMs = now + STALE_TTL_MS;
+      return payload;
+    })();
+  }
+
+  try {
+    return await inFlight;
+  } finally {
+    inFlight = null;
+  }
+}
+
 export async function GET() {
   try {
     const now = Date.now();
-    if (cachedPayload && now - lastFetchMs < CACHE_TTL_MS) {
-      return NextResponse.json(cachedPayload, { status: 200 });
+
+    if (cachedPayload && now - lastFetchMs < FRESH_TTL_MS) {
+      return NextResponse.json(cachedPayload, {
+        status: 200,
+        headers: { "x-telemetry-cache": "hit" },
+      });
     }
 
-    if (!inFlight) {
-      inFlight = (async () => {
-        const session = await fetchWithRetry(() => getLatestRaceSession());
-        if (!session) {
-          const nextSession = await fetchWithRetry(() => getNextRaceSession());
-          return {
-            status: "no_live",
-            session: "no-live-session",
-            timestamp: Math.floor(Date.now() / 1000),
-            drivers: [],
-            next_session: nextSession
-              ? {
-                  session_key: nextSession.session_key,
-                  session_name: nextSession.session_name,
-                  session_type: nextSession.session_type ?? "Race",
-                  country_name: nextSession.country_name ?? "",
-                  location: nextSession.location ?? "",
-                  circuit_short_name: nextSession.circuit_short_name ?? nextSession.session_name,
-                  date_start: nextSession.date_start ?? null,
-                  date_end: nextSession.date_end ?? null,
-                }
-              : null,
-          };
-        }
-
-        const [drivers, intervals] = await Promise.all([
-          fetchWithRetry(() => getDrivers(session.session_key)),
-          fetchWithRetry(() => getIntervals(session.session_key)),
-        ]);
-
-        const lapNumbers = intervals
-          .map((interval) => interval.lap_number)
-          .filter((lap): lap is number => typeof lap === "number" && Number.isFinite(lap));
-
-        const maxLap = lapNumbers.length ? Math.max(...lapNumbers) : null;
-        const laps =
-          maxLap !== null
-            ? await fetchWithRetry(() => getLapsForLapNumbers(session.session_key, [maxLap, maxLap - 1]))
-            : await fetchWithRetry(() => getLaps(session.session_key));
-
-        return {
-          status: "live",
-          ...buildTelemetryResponse(session, drivers, laps, intervals),
-        };
-      })();
+    if (cachedPayload && now < staleUntilMs) {
+      void refreshTelemetry().catch(() => null);
+      return NextResponse.json(cachedPayload, {
+        status: 200,
+        headers: { "x-telemetry-cache": "stale-while-revalidate" },
+      });
     }
 
-    const telemetry = await inFlight;
-    inFlight = null;
-    cachedPayload = telemetry;
-    lastFetchMs = now;
-    return NextResponse.json(telemetry, { status: 200 });
+    const telemetry = await refreshTelemetry();
+    return NextResponse.json(telemetry, {
+      status: 200,
+      headers: { "x-telemetry-cache": "miss" },
+    });
   } catch {
-    inFlight = null;
     if (cachedPayload) {
       return NextResponse.json(cachedPayload, {
         status: 200,
-        headers: { "x-telemetry-stale": "true" },
+        headers: { "x-telemetry-cache": "stale-on-error" },
       });
     }
     const nextSession = await getNextRaceSession().catch(() => null);
@@ -140,8 +176,9 @@ export async function GET() {
               date_end: nextSession.date_end ?? null,
             }
           : null,
+        warnings: ["Telemetry offline fallback response"],
       },
-      { status: 200 }
+      { status: 200, headers: { "x-telemetry-cache": "offline-fallback" } }
     );
   }
 }

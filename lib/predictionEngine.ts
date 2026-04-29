@@ -1,5 +1,4 @@
 import { fetchHistoricalData, fetchSeasonRaces } from '../src/services/jolpica';
-import { fetchLiveDashboardData } from '../src/services/openf1';
 import { getNextRaceSession, getRaceSessions } from './openf1';
 
 type ResultRow = {
@@ -8,6 +7,8 @@ type ResultRow = {
   driverName: string;
   teamName: string;
 };
+
+const SOURCE_TIMEOUT_MS = 6_000;
 
 export type PredictionForecastRequest = {
   grandPrix?: string;
@@ -36,6 +37,23 @@ export type PredictionForecastResponse = {
 
 function normalize(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function withSourceTimeout<T>(promise: Promise<T>, fallback: T): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  return new Promise((resolve) => {
+    timeoutId = setTimeout(() => resolve(fallback), SOURCE_TIMEOUT_MS);
+    promise
+      .then((value) => {
+        if (timeoutId) clearTimeout(timeoutId);
+        resolve(value);
+      })
+      .catch(() => {
+        if (timeoutId) clearTimeout(timeoutId);
+        resolve(fallback);
+      });
+  });
 }
 
 function scoreRows(rows: ResultRow[], weight: number, scores: Map<string, number>) {
@@ -87,12 +105,11 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
   const year = request.year ?? now.getUTCFullYear();
   const searchTerm = normalize(request.grandPrix ?? '');
 
-  const [live, raceSessions, seasonRaces, latestRace, nextSession] = await Promise.all([
-    fetchLiveDashboardData().catch(() => null),
-    getRaceSessions(year).catch(() => []),
-    fetchSeasonRaces(String(year)).catch(() => []),
-    fetchHistoricalData().catch(() => null),
-    getNextRaceSession().catch(() => null),
+  const [raceSessions, seasonRaces, latestRace, nextSession] = await Promise.all([
+    withSourceTimeout(getRaceSessions(year), []),
+    withSourceTimeout(fetchSeasonRaces(String(year)), []),
+    withSourceTimeout(fetchHistoricalData(), null),
+    withSourceTimeout(getNextRaceSession(), null),
   ]);
 
   const openF1Schedule = raceSessions.find((session) => {
@@ -129,9 +146,9 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
   const scores = new Map<string, number>();
   const factors: string[] = [];
   const sources = [
-    'OpenF1 telemetry and session schedule',
+    'OpenF1 session schedule',
     'Jolpica historical race results',
-    'OpenF1 live API fallback',
+    'OpenF1 session schedule fallback',
   ];
 
   if (latestRace) {
@@ -142,25 +159,21 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
 
   let sameRoundWinner: string | undefined;
   if (selectedRace && Number.isFinite(Number(selectedRace.round))) {
-    const sameRound = await fetchHistoricalData(String(year - 1), selectedRace.round).catch(() => null);
+    const previousSeasonRaces = await withSourceTimeout(fetchSeasonRaces(String(year - 1)), []);
+    const previousRaceMatch = previousSeasonRaces.find((race) => {
+      const currentName = normalize(selectedRace.raceName);
+      const previousName = normalize(race.raceName);
+      return previousName === currentName || previousName.includes(currentName) || currentName.includes(previousName);
+    });
+    const historyRound = previousRaceMatch?.round ?? selectedRace.round;
+    const sameRound = await withSourceTimeout(fetchHistoricalData(String(year - 1), historyRound), null);
     if (sameRound) {
       const sameRoundRows = mapHistoricalRows(sameRound);
       scoreRows(sameRoundRows, 0.35, scores);
       sameRoundWinner = sameRound.leaderboard[0]?.name_acronym;
       factors.push(`Circuit history: ${sameRound.session.session_name}`);
-      sources.push(`Jolpica ${year - 1} round ${selectedRace.round} results`);
+      sources.push(`Jolpica ${year - 1} ${sameRound.session.session_name} results`);
     }
-  }
-
-  if (live?.live_status === 'LIVE') {
-    const liveRows = live.leaderboard.map((row) => ({
-      position: row.position,
-      driverCode: row.name_acronym,
-      driverName: row.full_name,
-      teamName: row.team_name,
-    }));
-    scoreRows(liveRows, 0.8, scores);
-    factors.push(`Live pace signal: ${live.session.session_name}`);
   }
 
   if (openF1Schedule) {
@@ -177,12 +190,11 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
   const podium = topDrivers(scores, 3);
   const winner = podium[0] ?? 'TBD';
   const latestWinner = latestRace?.leaderboard[0]?.name_acronym;
-  const liveLeader = live?.leaderboard[0]?.name_acronym;
-  const circuit = selectedRace?.raceName ?? live?.next_session?.circuit_short_name ?? latestRace?.session.location ?? openF1Schedule?.circuit_short_name ?? undefined;
+  const circuit = selectedRace?.raceName ?? latestRace?.session.location ?? openF1Schedule?.circuit_short_name ?? undefined;
 
   const values = [...scores.values()].sort((a, b) => b - a);
   const spread = values.length >= 2 ? values[0] - values[1] : values[0] ?? 0;
-  const confidence = Math.max(52, Math.min(96, Math.round(58 + spread * 2.7 + (selectedRace ? 6 : 0) + (live?.live_status === 'LIVE' ? 8 : 0))));
+  const confidence = Math.max(52, Math.min(96, Math.round(58 + spread * 2.7 + (selectedRace ? 6 : 0))));
 
   return {
     title: 'Master Prediction Studio',
@@ -191,7 +203,7 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
     confidence,
     winner,
     podium,
-    narrative: buildNarrative(winner, latestWinner, sameRoundWinner, liveLeader, circuit),
+    narrative: buildNarrative(winner, latestWinner, sameRoundWinner, undefined, circuit),
     factors,
     sources,
     updatedAt: now.toISOString(),
@@ -199,7 +211,6 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
     dataSignals: {
       latestRaceWinner: latestWinner,
       sameRoundWinner,
-      liveLeader,
       circuit,
     },
   };

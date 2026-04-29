@@ -9,22 +9,29 @@ interface DraggableWidgetProps {
 }
 
 export default function DraggableWidget({ id, title, defaultX, defaultY, children }: DraggableWidgetProps) {
-  // Load saved position from localStorage, or use default
-  const getInitialPosition = () => {
-    const saved = localStorage.getItem(`hud_widget_${id}`);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return { x: defaultX, y: defaultY };
+  const [position, setPosition] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = window.localStorage.getItem(`hud_widget_${id}`);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved) as { x?: number; y?: number };
+          if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+            return { x: parsed.x, y: parsed.y };
+          }
+        } catch {
+          // Ignore invalid saved positions and fall back to defaults.
+        }
       }
     }
     return { x: defaultX, y: defaultY };
-  };
-
-  const [position, setPosition] = useState(getInitialPosition());
+  });
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
+  const positionRef = useRef(position);
+
+  useEffect(() => {
+    positionRef.current = position;
+  }, [position]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -54,7 +61,9 @@ export default function DraggableWidget({ id, title, defaultX, defaultY, childre
     const handleMouseUp = () => {
       setIsDragging(false);
       // Save position when dragging ends
-      localStorage.setItem(`hud_widget_${id}`, JSON.stringify(position));
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(`hud_widget_${id}`, JSON.stringify(positionRef.current));
+      }
     };
 
     if (isDragging) {
@@ -65,7 +74,7 @@ export default function DraggableWidget({ id, title, defaultX, defaultY, childre
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, id, position]);
+  }, [isDragging, id]);
 
   return (
     <div

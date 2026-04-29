@@ -10,55 +10,54 @@ export default function ReplayPage() {
 
   return (
     <div className="app-container" style={{ minHeight: "100vh" }}>
-      <div style={{ position: "relative", zIndex: 100, pointerEvents: "none", width: "100%" }}>
+      <div style={{ position: "relative", zIndex: 300, pointerEvents: "none", width: "100%" }}>
         <div style={{ pointerEvents: "auto" }}>
-          <Header sessionName={`${DASHBOARD_TITLE} Replay`} isLive={false} />
-
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: "1.5rem" }}>
+          <div className="top-placeholder">
             <div className="mode-toggle">
               <button
                 className="toggle-btn"
                 onClick={() => router.push("/?mode=live")}
               >
-                ● LIVE TELEMETRY
+                Live Telemetry
               </button>
               <button
                 className="toggle-btn"
                 onClick={() => router.push("/?mode=historical")}
               >
-                HISTORICAL ARCHIVE
+                Historical Archive
               </button>
               <button
-                className="toggle-btn active"
-                style={{ backgroundColor: "rgba(0, 147, 204, 0.16)", boxShadow: "0 0 10px rgba(0, 147, 204, 0.25)" }}
+                className="toggle-btn active-hist"
                 onClick={() => router.push("/replay")}
               >
-                RACE REPLAY
+                Race Replay
               </button>
               <button
                 className="toggle-btn"
                 onClick={() => router.push("/?mode=addons")}
               >
-                ADD-ON LIBRARY
+                Add-on Library
               </button>
               <button
                 className="toggle-btn"
                 onClick={() => router.push("/?mode=chat")}
               >
-                CHATBOT
+                Chatbot
               </button>
               <button
                 className="toggle-btn"
                 onClick={() => router.back()}
               >
-                BACK
+                Back
               </button>
             </div>
           </div>
+
+          <Header sessionName={`${DASHBOARD_TITLE} Replay`} isLive={false} />
         </div>
       </div>
 
-      <main style={{ minHeight: "100vh", padding: "0 1.5rem 1.5rem", position: "relative", zIndex: 101 }}>
+      <main className="replay-page-main" style={{ minHeight: "100vh", position: "relative", zIndex: 200 }}>
         <RaceReplay />
       </main>
     </div>

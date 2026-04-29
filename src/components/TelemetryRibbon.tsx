@@ -33,32 +33,6 @@ function RibbonChip({ label, value, tone = 'default' }: { label: string; value: 
   );
 }
 
-function SignalStripes() {
-  return (
-      <div
-      aria-hidden
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(12, 1fr)',
-        gap: '0.24rem',
-        marginTop: '0.1rem',
-        paddingTop: '0.05rem',
-      }}
-    >
-      {Array.from({ length: 12 }).map((_, index) => (
-        <span
-          key={index}
-          className="signal-stripe"
-          style={{
-            animationDelay: `${index * 0.12}s`,
-            opacity: 0.22 + (index % 4) * 0.08,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
 export default function TelemetryRibbon({ session, viewMode, live, signalLabel = 'SIGNAL: NOMINAL' }: TelemetryRibbonProps) {
   const circuit = session?.circuit_short_name ?? 'TRACKSIDE';
   const venue = session?.location ?? 'OPENF1';
@@ -117,41 +91,6 @@ export default function TelemetryRibbon({ session, viewMode, live, signalLabel =
         <RibbonChip label="Status" value={live ? 'TRACK LIVE' : 'TRACK CLEAR'} tone={live ? 'green' : 'red'} />
       </div>
 
-      <div style={{
-          display: 'grid',
-          gap: '0.35rem',
-        padding: '0.42rem 0.55rem',
-        borderRadius: 12,
-        background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(255,255,255,0.06)',
-      }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '0.75rem',
-          flexWrap: 'wrap',
-        }}>
-          <span style={{
-            color: 'var(--text-muted)',
-            fontSize: '0.56rem',
-            letterSpacing: '0.18em',
-            textTransform: 'uppercase',
-          }}>
-            Start-light / live-signal stripes
-          </span>
-          <span style={{
-            color: live ? '#00d2be' : 'var(--text-muted)',
-            fontSize: '0.56rem',
-            letterSpacing: '0.18em',
-            textTransform: 'uppercase',
-            fontWeight: 800,
-          }}>
-            {live ? 'ACTIVE' : 'STANDBY'}
-          </span>
-        </div>
-        <SignalStripes />
-      </div>
     </div>
   );
 }

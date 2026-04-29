@@ -18,6 +18,8 @@ interface JolpicaResult {
     time: string;
   };
   FastestLap?: {
+    rank?: string;
+    lap?: string;
     Time?: {
       time: string;
     };
@@ -55,6 +57,28 @@ interface JolpicaResultsResponse {
   };
 }
 
+export type CompletedRaceSummary = {
+  raceName: string;
+  round: string;
+  date: string;
+  circuitName: string;
+  country: string;
+  podium: {
+    position: number;
+    code: string;
+    fullName: string;
+    teamName: string;
+    status: string;
+  }[];
+  fastestLap: {
+    code: string;
+    fullName: string;
+    teamName: string;
+    time: string;
+    lap?: string;
+  } | null;
+};
+
 // Fetching historical completed race data from Jolpica (Ergast replacement)
 
 export async function fetchSeasonRaces(year: string): Promise<SeasonRace[]> {
@@ -67,7 +91,7 @@ export async function fetchSeasonRaces(year: string): Promise<SeasonRace[]> {
     const json = (await response.json()) as JolpicaSeasonResponse;
     return json.MRData.RaceTable.Races || [];
   } catch (err: unknown) {
-    console.error('Failed to fetch season races', err);
+    void err;
     return [];
   }
 }
@@ -143,7 +167,73 @@ export async function fetchHistoricalData(year?: string, round?: string): Promis
       next_session: null,
     };
   } catch (err: unknown) {
-    console.error('Jolpica api failed', err);
     throw new Error('Unable to load latest completed race from Jolpica.', { cause: err });
+  }
+}
+
+function getDriverDisplay(result: JolpicaResult) {
+  const code = result.Driver.code || 'UKN';
+  const meta = DRIVERS[code] || {
+    color: '#ffffff',
+    name: `${result.Driver.givenName} ${result.Driver.familyName}`,
+    team: result.Constructor.name,
+  };
+
+  return {
+    code,
+    fullName: meta.name,
+    teamName: result.Constructor.name,
+  };
+}
+
+export async function fetchLatestCompletedRaceSummary(): Promise<CompletedRaceSummary> {
+  try {
+    const response = await fetch('https://api.jolpi.ca/ergast/f1/current/last/results.json', {
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      throw new Error('Jolpica API Failed');
+    }
+
+    const json = (await response.json()) as JolpicaResultsResponse;
+    const race = json.MRData.RaceTable.Races[0];
+
+    if (!race) {
+      throw new Error('No completed race data found.');
+    }
+
+    const podium = race.Results.slice(0, 3).map((result) => ({
+      position: parseInt(result.position, 10),
+      ...getDriverDisplay(result),
+      status: result.status === 'Finished' && result.Time ? result.Time.time : result.status,
+    }));
+
+    const fastestLapResult = race.Results
+      .filter((result) => result.FastestLap?.Time?.time)
+      .sort((a, b) => {
+        const aRank = Number(a.FastestLap?.rank ?? Number.POSITIVE_INFINITY);
+        const bRank = Number(b.FastestLap?.rank ?? Number.POSITIVE_INFINITY);
+        return aRank - bRank;
+      })[0];
+
+    const fastestLap = fastestLapResult?.FastestLap?.Time?.time
+      ? {
+          ...getDriverDisplay(fastestLapResult),
+          time: fastestLapResult.FastestLap.Time.time,
+          lap: fastestLapResult.FastestLap.lap,
+        }
+      : null;
+
+    return {
+      raceName: race.raceName,
+      round: race.round,
+      date: race.date,
+      circuitName: race.Circuit.circuitName,
+      country: race.Circuit.Location.country,
+      podium,
+      fastestLap,
+    };
+  } catch (err: unknown) {
+    throw new Error('Unable to load latest completed race summary from Jolpica.', { cause: err });
   }
 }

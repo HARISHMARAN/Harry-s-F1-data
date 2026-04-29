@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { fetchLiveDashboardData } from "../../src/services/openf1";
 
 type TelemetryDriver = {
   code: string;
@@ -16,6 +17,7 @@ type TelemetryResponse = {
   session: string;
   timestamp: number;
   drivers: TelemetryDriver[];
+  health: "healthy" | "degraded" | "offline";
 };
 
 export default function PitwallPage() {
@@ -27,14 +29,30 @@ export default function PitwallPage() {
 
     async function load() {
       try {
-        const response = await fetch("/api/telemetry", { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error(`Telemetry fetch failed: ${response.status}`);
-        }
-        const json = (await response.json()) as TelemetryResponse;
+        const dashboard = await fetchLiveDashboardData();
+        const json: TelemetryResponse = {
+          session: dashboard.session.session_name,
+          timestamp: Math.floor(Date.now() / 1000),
+          health: dashboard.data_health ?? "healthy",
+          drivers: dashboard.leaderboard.map((entry) => ({
+            code: entry.name_acronym,
+            name: entry.full_name,
+            color: entry.team_colour,
+            position: entry.position,
+            lapTime: null,
+            gapToLeader: null,
+            deltaToBest: null,
+          })),
+        };
         if (active) {
           setData(json);
-          setError(null);
+          setError(
+            dashboard.data_health === "offline"
+              ? "Telemetry is offline. Rendering fallback data."
+              : dashboard.data_health === "degraded"
+                ? "Telemetry is degraded. Some values may be stale."
+                : null
+          );
         }
       } catch (err) {
         if (active) {
@@ -56,6 +74,7 @@ export default function PitwallPage() {
     <main style={{ padding: "2rem", fontFamily: "sans-serif" }}>
       <h1>Live Pitwall</h1>
       {data?.session && <p>Session: {data.session}</p>}
+      {data && <p>Health: {data.health.toUpperCase()}</p>}
       {error && <p style={{ color: "crimson" }}>{error}</p>}
       {!data && !error && <p>Loading telemetry...</p>}
       {data && (

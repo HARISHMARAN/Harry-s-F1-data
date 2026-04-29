@@ -45,6 +45,8 @@ export type OpenF1Lap = {
   duration_sector_3?: number | null;
   position?: number | null;
   date_start?: string | null;
+  compound?: string | null;
+  is_pit_out_lap?: boolean | null;
 };
 
 export type OpenF1Interval = {
@@ -84,6 +86,27 @@ export type OpenF1CarData = {
   drs?: number | null;
 };
 
+export type OpenF1Weather = {
+  session_key: number;
+  date: string;
+  air_temperature?: number | null;
+  track_temperature?: number | null;
+  humidity?: number | null;
+  pressure?: number | null;
+  rainfall?: number | null;
+  wind_direction?: number | null;
+  wind_speed?: number | null;
+};
+
+export type OpenF1TeamRadio = {
+  session_key: number;
+  date: string;
+  driver_number?: number | null;
+  recording_url?: string | null;
+  transcript?: string | null;
+  message?: string | null;
+};
+
 const BASE_URL = "https://api.openf1.org/v1/";
 
 function buildUrl(path: string, params?: Record<string, string | number | boolean | undefined>) {
@@ -100,12 +123,33 @@ function buildUrl(path: string, params?: Record<string, string | number | boolea
 
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
+const REQUEST_TIMEOUT_MS = 8_000;
 
 async function fetchOpenF1<T>(path: string, params?: Record<string, string | number | boolean | undefined>) {
   const url = buildUrl(path, params);
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const response = await fetch(url, { cache: "no-store" });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch(url, { cache: "no-store", signal: controller.signal });
+    } catch (error) {
+      clearTimeout(timeoutId);
+
+      const retryable = error instanceof DOMException && error.name === "AbortError";
+      if (!retryable || attempt === MAX_RETRIES) {
+        throw new Error(`OpenF1 request failed: ${url}`, { cause: error });
+      }
+
+      const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+      const jitter = Math.random() * 500;
+      await new Promise((resolve) => setTimeout(resolve, delay + jitter));
+      continue;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (response.ok) {
       return response.json() as Promise<T>;
@@ -256,6 +300,14 @@ export async function getCarData(sessionKey: number, driverNumber?: number) {
     session_key: sessionKey,
     driver_number: driverNumber,
   });
+}
+
+export async function getWeather(sessionKey: number) {
+  return fetchOpenF1<OpenF1Weather[]>("/weather", { session_key: sessionKey });
+}
+
+export async function getTeamRadio(sessionKey: number) {
+  return fetchOpenF1<OpenF1TeamRadio[]>("/team_radio", { session_key: sessionKey });
 }
 
 export type OpenF1Position = {

@@ -7,7 +7,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "npm run test:unit",
+    "test:unit": "node --import tsx --test tests/unit/**/*.test.ts",
+    "test:integration": "node scripts/smoke-routes.mjs",
+    "test:visual": "playwright test -c playwright.config.ts",
+    "test:visual:update": "playwright test -c playwright.config.ts --update-snapshots",
+    "quality": "npm run typecheck && npm run lint && npm run test:unit && npm run build",
+    "hooks:install": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -18,10 +26,12 @@
     "pg": "^8.13.1",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "recharts": "^3.8.1"
+    "recharts": "^3.8.1",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@playwright/test": "^1.59.1",
     "@types/node": "^25.6.0",
     "@types/pg": "^8.11.10",
     "@types/react": "^19.2.14",
@@ -30,12 +40,13 @@
     "concurrently": "^9.2.0",
     "dotenv": "^17.4.1",
     "eslint": "^9.39.4",
+    "eslint-config-next": "^15.2.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
+    "tsx": "^4.21.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.1",
-    "eslint-config-next": "^15.2.4",
     "vite": "^8.0.8"
   }
 }
