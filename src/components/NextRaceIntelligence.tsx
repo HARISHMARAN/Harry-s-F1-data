@@ -12,6 +12,7 @@ type NextRaceIntelligenceProps = {
 };
 
 const FALLBACK_NEXT_RACE = 'Miami Grand Prix';
+const GENERIC_SESSION_NAMES = new Set(['', 'Race', 'NO LIVE SESSION', 'TELEMETRY OFFLINE']);
 
 function formatSchedule(value?: string) {
   if (!value) return 'Schedule pending';
@@ -61,7 +62,9 @@ export default function NextRaceIntelligence({ nextSession, compact = false }: N
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const nextRaceName = nextSession?.session_name || FALLBACK_NEXT_RACE;
+  const nextRaceName = nextSession?.session_name && !GENERIC_SESSION_NAMES.has(nextSession.session_name)
+    ? nextSession.session_name
+    : FALLBACK_NEXT_RACE;
   const nextRaceYear = useMemo(() => getSessionYear(nextSession), [nextSession]);
 
   useEffect(() => {
