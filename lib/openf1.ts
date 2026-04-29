@@ -263,6 +263,32 @@ export async function getNextRaceSession(now = new Date()): Promise<OpenF1Sessio
     .sort((a, b) => Date.parse(a.date_start) - Date.parse(b.date_start))[0] ?? null;
 }
 
+export async function getCurrentOrNextRaceSession(now = new Date()): Promise<OpenF1Session | null> {
+  const year = now.getUTCFullYear();
+  const fetchYear = async (targetYear: number) => {
+    try {
+      return await fetchOpenF1<OpenF1Session[]>("/sessions", {
+        year: targetYear,
+        session_name: "Race",
+      });
+    } catch {
+      return [] as OpenF1Session[];
+    }
+  };
+
+  const sessions = [...await fetchYear(year), ...await fetchYear(year + 1)]
+    .filter((session) => session.date_start)
+    .sort((a, b) => Date.parse(a.date_start) - Date.parse(b.date_start));
+  const nowTs = now.getTime();
+  const keepCurrentRaceUntilMs = 12 * 60 * 60 * 1000;
+
+  return sessions.find((session) => {
+    const startTs = Date.parse(session.date_start);
+    const endTs = session.date_end ? Date.parse(session.date_end) : startTs + 3 * 60 * 60 * 1000;
+    return nowTs <= endTs + keepCurrentRaceUntilMs;
+  }) ?? null;
+}
+
 export async function getNextSession(now = new Date()): Promise<OpenF1Session | null> {
   const year = now.getUTCFullYear();
 

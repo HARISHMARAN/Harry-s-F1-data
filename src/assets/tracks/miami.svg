@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 560" role="img" aria-label="Miami International Autodrome circuit outline">
+  <rect width="860" height="560" fill="none"/>
+  <path d="M 120 160 L 310 126 L 463 180 L 642 139 L 708 176 L 685 254 L 548 287 L 447 249 L 360 264 L 285 318 L 196 313 L 145 369 L 217 421 L 356 470 L 521 431 L 668 455 L 739 401 L 705 330 L 626 327 L 542 358 L 420 333 L 313 374 L 219 356 L 129 424" fill="none" stroke="#072d2e" stroke-width="72" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 120 160 L 310 126 L 463 180 L 642 139 L 708 176 L 685 254 L 548 287 L 447 249 L 360 264 L 285 318 L 196 313 L 145 369 L 217 421 L 356 470 L 521 431 L 668 455 L 739 401 L 705 330 L 626 327 L 542 358 L 420 333 L 313 374 L 219 356 L 129 424" fill="none" stroke="#16f3e3" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 120 160 L 310 126 L 463 180 L 642 139 L 708 176 L 685 254 L 548 287 L 447 249 L 360 264 L 285 318 L 196 313 L 145 369 L 217 421 L 356 470 L 521 431 L 668 455 L 739 401 L 705 330 L 626 327 L 542 358 L 420 333 L 313 374 L 219 356 L 129 424" fill="none" stroke="#f8fbff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="10 20"/>
+  <line x1="104" y1="149" x2="136" y2="171" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="120" cy="160" r="7" fill="#ffffff"/>
+</svg>

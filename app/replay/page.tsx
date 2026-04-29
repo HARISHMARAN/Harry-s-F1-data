@@ -40,6 +40,12 @@ export default function ReplayPage() {
               </button>
               <button
                 className="toggle-btn"
+                onClick={() => router.push("/?mode=news")}
+              >
+                News
+              </button>
+              <button
+                className="toggle-btn"
                 onClick={() => router.back()}
               >
                 Back

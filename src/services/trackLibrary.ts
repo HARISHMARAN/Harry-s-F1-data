@@ -12,6 +12,7 @@ import hockenheimSvg from '../assets/tracks/hockenheim.svg?raw';
 import shanghaiSvg from '../assets/tracks/shanghai.svg?raw';
 import hungaroringSvg from '../assets/tracks/hungaroring.svg?raw';
 import redBullRingSvg from '../assets/tracks/red-bull-ring.svg?raw';
+import miamiSvg from '../assets/tracks/miami.svg?raw';
 import sepangSvg from '../assets/tracks/sepang.svg?raw';
 import barcelonaSvg from '../assets/tracks/barcelona.svg?raw';
 import marinaBaySvg from '../assets/tracks/marina-bay.svg?raw';
@@ -35,6 +36,7 @@ const TRACK_SVGS: Record<string, string> = {
   shanghai: shanghaiSvg,
   hungaroring: hungaroringSvg,
   redBullRing: redBullRingSvg,
+  miami: miamiSvg,
   sepang: sepangSvg,
   barcelona: barcelonaSvg,
   marinaBay: marinaBaySvg,
@@ -78,6 +80,9 @@ export function getTrackSvgForCircuit(value: string | undefined | null) {
   if (key.includes('hungaroring') || key.includes('budapest')) return TRACK_SVGS.hungaroring;
   if (key.includes('red bull ring') || key.includes('spielberg') || key.includes('austria')) {
     return TRACK_SVGS.redBullRing;
+  }
+  if (key.includes('miami') || key.includes('hard rock') || key.includes('miami gardens')) {
+    return TRACK_SVGS.miami;
   }
   if (key.includes('sepang')) return TRACK_SVGS.sepang;
   if (key.includes('barcelona') || key.includes('catalunya')) return TRACK_SVGS.barcelona;

@@ -13,6 +13,7 @@ import TrackBackdrop from './components/TrackBackdrop';
 import DraggableWidget from './components/DraggableWidget';
 import NextRaceIntelligence from './components/NextRaceIntelligence';
 import LiveRaceTelemetryPanel from './components/LiveRaceTelemetryPanel';
+import NewsView from './components/NewsView';
 import ChatView from './components/chat/ChatView';
 import { AlertCircle } from 'lucide-react';
 import { useDashboardData } from './hooks/useDashboardData';
@@ -56,9 +57,10 @@ function App() {
   } = state;
   const isLive = liveStatus === 'LIVE';
   const [latestCompletedSession, setLatestCompletedSession] = useState<DashboardSession | null>(null);
+  const [upcomingRaceSession, setUpcomingRaceSession] = useState<DashboardSession | null>(null);
   const nextSchedule = nextSession ?? (session?.status === 'NO_RACE' ? session : null);
-  const nextRaceSchedule = nextSchedule?.session_type === 'Race' ? nextSchedule : FALLBACK_BACKDROP_SESSION;
-  const backdropSession = nextSchedule ?? session ?? latestCompletedSession ?? FALLBACK_BACKDROP_SESSION;
+  const nextRaceSchedule = upcomingRaceSession ?? (nextSchedule?.session_type === 'Race' ? nextSchedule : FALLBACK_BACKDROP_SESSION);
+  const backdropSession = nextRaceSchedule ?? session ?? latestCompletedSession ?? FALLBACK_BACKDROP_SESSION;
   const [viewportWidth, setViewportWidth] = useState(1440);
   const rightRailX = Math.max(20, viewportWidth - 380);
   const isNarrowViewport = viewportWidth < 1100;
@@ -78,16 +80,27 @@ function App() {
     if (mode === 'addons') dispatch({ type: 'SET_VIEW_MODE', payload: 'LIVE' });
     if (mode === 'chat') dispatch({ type: 'SET_VIEW_MODE', payload: 'CHAT' });
     if (mode === 'predictions') dispatch({ type: 'SET_VIEW_MODE', payload: 'PREDICTIONS' });
+    if (mode === 'news') dispatch({ type: 'SET_VIEW_MODE', payload: 'NEWS' });
   }, [searchParams, dispatch]);
 
   useEffect(() => {
     let ignore = false;
 
-    const loadLatestRaceForBackdrop = async () => {
+    const loadBackdropContext = async () => {
       try {
-        const latestRace = await fetchHistoricalData();
-        if (!ignore && latestRace?.session) {
-          setLatestCompletedSession(latestRace.session);
+        const [latestRace, nextRaceResponse] = await Promise.all([
+          fetchHistoricalData().catch(() => null),
+          fetch('/api/schedule/next-race', { cache: 'no-store' }).then((response) => response.ok ? response.json() : null).catch(() => null),
+        ]);
+        if (ignore) return;
+        if (latestRace?.session) setLatestCompletedSession(latestRace.session);
+        if (nextRaceResponse?.next_race) {
+          setUpcomingRaceSession({
+            ...nextRaceResponse.next_race,
+            date_start: nextRaceResponse.next_race.date_start ?? FALLBACK_BACKDROP_SESSION.date_start,
+            current_lap: 'SCHEDULED',
+            status: 'NO_RACE',
+          });
         }
       } catch {
         if (!ignore) {
@@ -96,8 +109,8 @@ function App() {
       }
     };
 
-    loadLatestRaceForBackdrop();
-    const intervalId = window.setInterval(loadLatestRaceForBackdrop, BACKDROP_REFRESH_MS);
+    loadBackdropContext();
+    const intervalId = window.setInterval(loadBackdropContext, BACKDROP_REFRESH_MS);
 
     return () => {
       ignore = true;
@@ -108,7 +121,7 @@ function App() {
   return (
     <div className="app-container" style={{ position: 'relative', minHeight: '100vh' }}>
       
-      {/* BACKGROUND LAYER: TRACK MAP (FIXED) - Always latest completed race */}
+      {/* BACKGROUND LAYER: TRACK MAP (FIXED) - Current/upcoming race circuit */}
       {backdropSession && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1 }}>
           <TrackBackdrop session={backdropSession} />
@@ -150,6 +163,12 @@ function App() {
                 onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'PREDICTIONS' })}
               >
                 Predictions
+              </button>
+              <button
+                className={`toggle-btn ${viewMode === 'NEWS' ? 'active-hist' : ''}`}
+                onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'NEWS' })}
+              >
+                News
               </button>
             </div>
           </div>
@@ -199,6 +218,8 @@ function App() {
           <ChatView />
         ) : viewMode === 'PREDICTIONS' ? (
           <PredictionStudio />
+        ) : viewMode === 'NEWS' ? (
+          <NewsView />
         ) : loading ? (
           <div className="dashboard-grid">
             <div className="dashboard-column">

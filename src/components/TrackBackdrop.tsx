@@ -1,5 +1,6 @@
 import type { DashboardSession } from '../types/f1';
 import { buildTrackPath, generateTrackPoints, normalizeTrack } from '../services/trackLayout';
+import { getTrackSvgForCircuit } from '../services/trackLibrary';
 
 interface TrackBackdropProps {
   session: DashboardSession | null;
@@ -12,6 +13,8 @@ export default function TrackBackdrop({ session }: TrackBackdropProps) {
   const circuitLabel = session?.circuit_short_name ?? session?.location ?? 'Circuit Layout';
   const raceLabel = session?.session_name ?? 'Race Context';
   const startPoint = points[0] ?? { x: 0, y: 0 };
+  const trackSvg = getTrackSvgForCircuit(`${session?.circuit_short_name ?? ''} ${session?.location ?? ''} ${session?.country_name ?? ''}`);
+  const trackSvgMarkup = trackSvg?.replace('<svg ', '<svg style="width:100%;height:100%;display:block;" ') ?? null;
 
   return (
     <div
@@ -24,37 +27,52 @@ export default function TrackBackdrop({ session }: TrackBackdropProps) {
           'radial-gradient(circle at 20% 15%, rgba(21, 209, 204, 0.14), transparent 28%), radial-gradient(circle at 80% 10%, rgba(234, 51, 35, 0.08), transparent 22%), linear-gradient(135deg, rgba(8, 10, 14, 0.98), rgba(12, 16, 22, 0.94) 45%, rgba(6, 8, 12, 0.98))',
       }}
     >
-      <svg viewBox="0 0 860 560" style={{ width: '100%', height: '100%' }} aria-hidden>
-        <defs>
-          <linearGradient id="trackBackdropGlow" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="rgba(0, 240, 255, 0.06)" />
-            <stop offset="50%" stopColor="rgba(0, 240, 255, 0.18)" />
-            <stop offset="100%" stopColor="rgba(0, 240, 255, 0.06)" />
-          </linearGradient>
-        </defs>
-        <g opacity="0.42">
-          <path d={trackPath} fill="none" stroke="rgba(255,255,255,0.035)" strokeWidth="30" />
-          <path d={trackPath} fill="none" stroke="url(#trackBackdropGlow)" strokeWidth="8" strokeLinecap="round" />
-          <path
-            d={trackPath}
-            fill="none"
-            stroke="rgba(255,255,255,0.08)"
-            strokeWidth="2"
-            strokeDasharray="4 16"
+      {trackSvgMarkup ? (
+        <div
+          aria-hidden
+          style={{
+            width: '100%',
+            height: '100%',
+            padding: '7vh 5vw',
+            opacity: 0.42,
+            filter: 'drop-shadow(0 0 28px rgba(21, 209, 204, 0.28)) saturate(0.95)',
+            mixBlendMode: 'screen',
+          }}
+          dangerouslySetInnerHTML={{ __html: trackSvgMarkup }}
+        />
+      ) : (
+        <svg viewBox="0 0 860 560" style={{ width: '100%', height: '100%' }} aria-hidden>
+          <defs>
+            <linearGradient id="trackBackdropGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="rgba(0, 240, 255, 0.06)" />
+              <stop offset="50%" stopColor="rgba(0, 240, 255, 0.18)" />
+              <stop offset="100%" stopColor="rgba(0, 240, 255, 0.06)" />
+            </linearGradient>
+          </defs>
+          <g opacity="0.42">
+            <path d={trackPath} fill="none" stroke="rgba(255,255,255,0.035)" strokeWidth="30" />
+            <path d={trackPath} fill="none" stroke="url(#trackBackdropGlow)" strokeWidth="8" strokeLinecap="round" />
+            <path
+              d={trackPath}
+              fill="none"
+              stroke="rgba(255,255,255,0.08)"
+              strokeWidth="2"
+              strokeDasharray="4 16"
+              strokeLinecap="round"
+            />
+          </g>
+          <line
+            x1={startPoint.x - 12}
+            y1={startPoint.y}
+            x2={startPoint.x + 12}
+            y2={startPoint.y}
+            stroke="rgba(255,255,255,0.5)"
+            strokeWidth="3"
             strokeLinecap="round"
           />
-        </g>
-        <line
-          x1={startPoint.x - 12}
-          y1={startPoint.y}
-          x2={startPoint.x + 12}
-          y2={startPoint.y}
-          stroke="rgba(255,255,255,0.5)"
-          strokeWidth="3"
-          strokeLinecap="round"
-        />
-        <circle cx={startPoint.x} cy={startPoint.y} r="3.5" fill="rgba(255,255,255,0.85)" />
-      </svg>
+          <circle cx={startPoint.x} cy={startPoint.y} r="3.5" fill="rgba(255,255,255,0.85)" />
+        </svg>
+      )}
       <div
         style={{
           position: 'absolute',
@@ -87,7 +105,7 @@ export default function TrackBackdrop({ session }: TrackBackdropProps) {
           textTransform: 'uppercase',
         }}
       >
-        {raceLabel} / Sectors / Grid / Pit Lane
+        {raceLabel} / {trackSvgMarkup ? 'Circuit Asset' : 'Generated Layout'} / Sectors / Grid / Pit Lane
       </div>
     </div>
   );
