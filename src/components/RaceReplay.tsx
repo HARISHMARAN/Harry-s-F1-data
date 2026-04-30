@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { fetchDriverReplayTelemetry, fetchReplayDataset, fetchReplaySessions } from '../services/replay';
 import { buildTrackPath, getTrackPointsForCircuit, normalizeTrack } from '../services/trackLayout';
+import { formatShortDate } from '../utils/dateFormat';
 import RaceIntelligencePanel from './RaceIntelligencePanel';
 import type {
   ReplayDataset,
@@ -1590,7 +1591,7 @@ export default function RaceReplay({ isEmbedded = false }: RaceReplayProps) {
             >
               {sessions.map((session) => (
                 <option key={session.session_key} value={session.session_key}>
-                  {session.country_name} • {new Date(session.date_start).toLocaleDateString()}
+                  {session.country_name} • {formatShortDate(session.date_start)}
                 </option>
               ))}
             </select>

@@ -1,5 +1,6 @@
 import { Calendar, MapPin, Activity } from 'lucide-react';
 import type { DashboardSession } from '../types/f1';
+import { formatSessionSchedule } from '../utils/dateFormat';
 
 interface SessionInfoProps {
   session: DashboardSession;
@@ -8,7 +9,6 @@ interface SessionInfoProps {
 export default function SessionInfo({ session }: SessionInfoProps) {
   if (!session) return null;
 
-  const startDate = new Date(session.date_start);
   const isNoRace = session.status === 'NO_RACE';
   
   return (
@@ -59,7 +59,7 @@ export default function SessionInfo({ session }: SessionInfoProps) {
             <div>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1px' }}>SCHEDULED</p>
               <p style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.85rem' }}>
-                {startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} @ {startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {formatSessionSchedule(session.date_start, 'TBD')}
               </p>
             </div>
           </div>

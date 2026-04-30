@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, ExternalLink, Newspaper, RefreshCw, ShieldCheck } from 'lucide-react';
+import { formatUpdatedAt } from '../utils/dateFormat';
 
 type NewsItem = {
   id: string;
@@ -22,14 +23,7 @@ type NewsResponse = {
 };
 
 function formatDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Date unavailable';
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
+  return formatUpdatedAt(value, 'Date unavailable');
 }
 
 function categoryTone(category: NewsItem['category']) {
@@ -187,7 +181,7 @@ export default function NewsView() {
 
       {data ? (
         <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-          Sources: {data.sources.join(', ')}. Updated {new Date(data.updatedAt).toLocaleString()}.
+          Sources: {data.sources.join(', ')}. Updated {formatUpdatedAt(data.updatedAt)}.
         </p>
       ) : null}
     </section>

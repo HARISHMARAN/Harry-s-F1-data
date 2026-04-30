@@ -7,6 +7,7 @@ import type {
   ReplayStrategySummary,
   ReplayWeatherSample,
 } from '../types/f1';
+import { formatSessionTime } from '../utils/dateFormat';
 
 type UiPositionPoint = {
   lap: number;
@@ -75,12 +76,7 @@ function formatDuration(startIso: string, endIso: string) {
 }
 
 function formatTime(iso: string) {
-  const time = Date.parse(iso);
-  if (!Number.isFinite(time)) return '--:--';
-  return new Date(time).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatSessionTime(iso);
 }
 
 function formatWeather(sample: ReplayWeatherSample) {

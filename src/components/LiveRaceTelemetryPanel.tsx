@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Activity, AlertTriangle, BatteryWarning, CloudRain, Droplets, Flag, Gauge, Radio, Timer, Wind } from 'lucide-react';
 import type { DashboardSession } from '../types/f1';
+import { formatSessionScheduleWithWeekday } from '../utils/dateFormat';
 
 type DriverTelemetryInsight = {
   driver_number: number;
@@ -105,19 +106,6 @@ function formatLapTime(value: number | null) {
   return `${minutes}:${seconds.toFixed(3).padStart(6, '0')}`;
 }
 
-function formatSchedule(value?: string | null) {
-  if (!value) return 'Schedule pending';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Schedule pending';
-  return new Intl.DateTimeFormat(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-}
-
 function compoundTone(compound: string | null) {
   const normalized = compound?.toLowerCase() ?? '';
   if (normalized.includes('soft')) return '#ef4444';
@@ -214,7 +202,7 @@ export default function LiveRaceTelemetryPanel({ nextSession, compact = false }:
             {sessionLabel} Telemetry
           </h2>
           <p style={{ margin: '0.35rem 0 0', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
-            {isLive ? `${sessionType} data is being refreshed every ${REFRESH_MS / 1000}s.` : `Next ${raceLabel} session: ${formatSchedule(nextStart)}`}
+            {isLive ? `${sessionType} data is being refreshed every ${REFRESH_MS / 1000}s.` : `Next ${raceLabel} session: ${formatSessionScheduleWithWeekday(nextStart)}`}
           </p>
         </div>
         <div style={{ textAlign: 'right', minWidth: 92 }}>

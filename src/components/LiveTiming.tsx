@@ -1,5 +1,6 @@
 import { Trophy } from 'lucide-react';
 import type { DriverPosition } from '../types/f1';
+import { formatSessionSchedule } from '../utils/dateFormat';
 
 interface LiveTimingProps {
   data: DriverPosition[];
@@ -11,15 +12,6 @@ interface LiveTimingProps {
     country_name: string;
     date_start: string;
   } | null;
-}
-
-function formatSchedule(dateIso?: string) {
-  if (!dateIso) return 'TBD';
-  const date = new Date(dateIso);
-  return `${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} @ ${date.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  })}`;
 }
 
 export default function LiveTiming({
@@ -45,7 +37,7 @@ export default function LiveTiming({
                 <>
                   Next up: <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{nextSession.session_name}</span>
                   <br />
-                  {nextSession.location}, {nextSession.country_name} — {formatSchedule(nextSession.date_start)}
+                  {nextSession.location}, {nextSession.country_name} — {formatSessionSchedule(nextSession.date_start, 'TBD')}
                 </>
               ) : (
                 'Next race schedule is not available yet.'

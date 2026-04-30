@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Activity, CalendarRange, Flag, Gauge, RefreshCw, Trophy } from 'lucide-react';
 import { fetchPredictionForecast, getPredictionSourceLabel, type PredictionForecastResponse } from '../services/predictionsApi';
+import { formatSessionScheduleWithWeekday, formatUpdatedAt } from '../utils/dateFormat';
 
 type PredictionFormState = {
   grandPrix: string;
@@ -24,16 +25,7 @@ const buttonStyle: CSSProperties = {
 };
 
 function formatSchedule(value: string | null) {
-  if (!value) return 'Not scheduled';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Schedule pending';
-  return new Intl.DateTimeFormat(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
+  return formatSessionScheduleWithWeekday(value, value ? 'Schedule pending' : 'Not scheduled');
 }
 
 function sourceTone(source: WeekendPrediction['resultSource']) {
@@ -306,7 +298,7 @@ export default function PredictionStudio() {
               {forecast.dataSignals.liveLeader ? `- live leader ${forecast.dataSignals.liveLeader}` : '- no live leader yet'}
             </p>
             <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-              Updated {new Date(forecast.updatedAt).toLocaleString()}. The cards refresh every 30 seconds while this tab is open.
+              Updated {formatUpdatedAt(forecast.updatedAt)}. The cards refresh every 30 seconds while this tab is open.
             </p>
           </section>
         </div>

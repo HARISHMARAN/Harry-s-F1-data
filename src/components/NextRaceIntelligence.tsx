@@ -5,6 +5,7 @@ import { BarChart3, CalendarDays, Gauge, Timer, Trophy } from 'lucide-react';
 import { fetchLatestCompletedRaceSummary, fetchPreviousEditionRaceSummary, type CompletedRaceSummary } from '../services/jolpica';
 import { fetchPredictionForecast, type PredictionForecastResponse } from '../services/predictionsApi';
 import type { DashboardSession } from '../types/f1';
+import { formatRaceDate, formatSessionSchedule } from '../utils/dateFormat';
 
 type NextRaceIntelligenceProps = {
   nextSession: DashboardSession | null;
@@ -15,30 +16,6 @@ const FALLBACK_NEXT_RACE = 'Miami Grand Prix';
 const GENERIC_SESSION_NAMES = new Set(['', 'Race', 'NO LIVE SESSION', 'TELEMETRY OFFLINE']);
 const INTELLIGENCE_TIMEOUT_MS = 6_500;
 const PREVIOUS_EDITION_TIMEOUT_MS = 7_500;
-
-function formatSchedule(value?: string) {
-  if (!value) return 'Schedule pending';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Schedule pending';
-
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-}
-
-function formatRaceDate(value: string) {
-  const date = new Date(`${value}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return value;
-
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: '2-digit',
-    year: 'numeric',
-  }).format(date);
-}
 
 function getSessionYear(nextSession: DashboardSession | null) {
   if (nextSession?.date_start) {
@@ -166,7 +143,7 @@ export default function NextRaceIntelligence({ nextSession, compact = false }: N
             {nextRaceName}
           </h2>
           <p style={{ margin: '0.35rem 0 0', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
-            {nextSession?.location ? `${nextSession.location}, ${nextSession.country_name}` : 'Miami Gardens, United States'} - {formatSchedule(nextSession?.date_start)}
+            {nextSession?.location ? `${nextSession.location}, ${nextSession.country_name}` : 'Miami Gardens, United States'} - {formatSessionSchedule(nextSession?.date_start)}
           </p>
         </div>
         <div style={{ textAlign: 'right' }}>

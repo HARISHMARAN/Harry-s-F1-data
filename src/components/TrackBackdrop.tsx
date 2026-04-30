@@ -45,7 +45,7 @@ function styleTrackSvg(svg: string) {
       }
       .track-asset-svg path {
         fill: none !important;
-        stroke: rgba(21, 209, 204, 0.9) !important;
+        stroke: rgba(67, 255, 122, 0.92) !important;
         stroke-width: 3.4 !important;
         stroke-linecap: round !important;
         stroke-linejoin: round !important;
@@ -53,7 +53,7 @@ function styleTrackSvg(svg: string) {
         vector-effect: non-scaling-stroke;
       }
       .track-asset-svg path:first-of-type {
-        stroke: rgba(255, 255, 255, 0.2) !important;
+        stroke: rgba(174, 255, 201, 0.18) !important;
         stroke-width: 18 !important;
       }
       .track-asset-svg path:nth-of-type(2) {
@@ -93,7 +93,7 @@ export default function TrackBackdrop({ session }: TrackBackdropProps) {
         zIndex: 1,
         opacity: 0.92,
         background:
-          'radial-gradient(circle at 22% 16%, rgba(21, 209, 204, 0.18), transparent 30%), radial-gradient(circle at 78% 12%, rgba(234, 51, 35, 0.12), transparent 22%), linear-gradient(135deg, rgba(7, 10, 14, 0.98), rgba(12, 17, 24, 0.94) 46%, rgba(5, 8, 12, 0.98))',
+          'radial-gradient(circle at 22% 16%, rgba(67, 255, 122, 0.16), transparent 30%), radial-gradient(circle at 78% 12%, rgba(234, 51, 35, 0.1), transparent 22%), linear-gradient(135deg, rgba(7, 10, 14, 0.98), rgba(10, 18, 16, 0.94) 46%, rgba(5, 8, 12, 0.98))',
       }}
     >
       {trackSvgMarkup ? (
@@ -104,7 +104,7 @@ export default function TrackBackdrop({ session }: TrackBackdropProps) {
               position: 'absolute',
               inset: 0,
               background:
-                'linear-gradient(90deg, transparent 0%, rgba(21, 209, 204, 0.055) 48%, transparent 100%)',
+                'linear-gradient(90deg, transparent 0%, rgba(67, 255, 122, 0.07) 48%, transparent 100%)',
               maskImage: 'linear-gradient(180deg, transparent 0%, black 22%, black 74%, transparent 100%)',
             }}
           />
@@ -114,7 +114,7 @@ export default function TrackBackdrop({ session }: TrackBackdropProps) {
               position: 'absolute',
               inset: '5vh 4vw 6vh',
               opacity: 0.78,
-              filter: 'drop-shadow(0 0 24px rgba(21, 209, 204, 0.7)) drop-shadow(0 0 80px rgba(0, 147, 204, 0.3))',
+              filter: 'drop-shadow(0 0 22px rgba(67, 255, 122, 0.76)) drop-shadow(0 0 88px rgba(18, 184, 86, 0.34))',
               mixBlendMode: 'screen',
             }}
             dangerouslySetInnerHTML={{ __html: trackSvgMarkup }}
@@ -124,9 +124,9 @@ export default function TrackBackdrop({ session }: TrackBackdropProps) {
         <svg viewBox="0 0 860 560" style={{ width: '100%', height: '100%' }} aria-hidden>
           <defs>
             <linearGradient id="trackBackdropGlow" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="rgba(0, 240, 255, 0.06)" />
-              <stop offset="50%" stopColor="rgba(0, 240, 255, 0.18)" />
-              <stop offset="100%" stopColor="rgba(0, 240, 255, 0.06)" />
+              <stop offset="0%" stopColor="rgba(67, 255, 122, 0.07)" />
+              <stop offset="50%" stopColor="rgba(67, 255, 122, 0.22)" />
+              <stop offset="100%" stopColor="rgba(67, 255, 122, 0.07)" />
             </linearGradient>
           </defs>
           <g opacity="0.42">
