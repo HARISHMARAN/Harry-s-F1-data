@@ -36,6 +36,47 @@ const FALLBACK_BACKDROP_SESSION: DashboardSession = {
   current_lap: 'SCHEDULED',
 };
 
+const HUD_VISIBILITY_STORAGE_KEY = 'hud_widget_visibility_miami-live-telemetry-v1';
+const HUD_LAYOUT_STORAGE_PREFIX = 'hud_widget_miami-live-telemetry-v3_';
+
+const HUD_WIDGET_OPTIONS = [
+  { id: 'leaderboard', label: 'Live timing' },
+  { id: 'live_race_telemetry', label: 'Live race telemetry' },
+  { id: 'next_race_intelligence', label: 'Previous winners + prediction' },
+  { id: 'focused_driver', label: 'Driver focus' },
+  { id: 'session_info', label: 'Session info' },
+  { id: 'data_pipeline', label: 'Pipeline' },
+] as const;
+
+type HudWidgetId = typeof HUD_WIDGET_OPTIONS[number]['id'];
+type HudVisibility = Record<HudWidgetId, boolean>;
+
+const DEFAULT_HUD_VISIBILITY: HudVisibility = {
+  leaderboard: true,
+  live_race_telemetry: true,
+  next_race_intelligence: true,
+  focused_driver: false,
+  session_info: false,
+  data_pipeline: false,
+};
+
+function readHudVisibility(): HudVisibility {
+  if (typeof window === 'undefined') return DEFAULT_HUD_VISIBILITY;
+
+  const saved = window.localStorage.getItem(HUD_VISIBILITY_STORAGE_KEY);
+  if (!saved) return DEFAULT_HUD_VISIBILITY;
+
+  try {
+    const parsed = JSON.parse(saved) as Partial<Record<HudWidgetId, boolean>>;
+    return HUD_WIDGET_OPTIONS.reduce((current, option) => ({
+      ...current,
+      [option.id]: typeof parsed[option.id] === 'boolean' ? parsed[option.id] : DEFAULT_HUD_VISIBILITY[option.id],
+    }), DEFAULT_HUD_VISIBILITY);
+  } catch {
+    return DEFAULT_HUD_VISIBILITY;
+  }
+}
+
 function App() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -58,6 +99,8 @@ function App() {
   const isLive = liveStatus === 'LIVE';
   const [latestCompletedSession, setLatestCompletedSession] = useState<DashboardSession | null>(null);
   const [upcomingRaceSession, setUpcomingRaceSession] = useState<DashboardSession | null>(null);
+  const [visibleHudWidgets, setVisibleHudWidgets] = useState<HudVisibility>(DEFAULT_HUD_VISIBILITY);
+  const [layoutResetKey, setLayoutResetKey] = useState(0);
   const nextSchedule = nextSession ?? (session?.status === 'NO_RACE' ? session : null);
   const nextRaceSchedule = upcomingRaceSession ?? (nextSchedule?.session_type === 'Race' ? nextSchedule : FALLBACK_BACKDROP_SESSION);
   const backdropSession = nextRaceSchedule ?? session ?? latestCompletedSession ?? FALLBACK_BACKDROP_SESSION;
@@ -71,6 +114,90 @@ function App() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const frameId = window.requestAnimationFrame(() => setVisibleHudWidgets(readHudVisibility()));
+    return () => window.cancelAnimationFrame(frameId);
+  }, []);
+
+  const updateHudVisibility = (id: HudWidgetId, checked: boolean) => {
+    setVisibleHudWidgets((current) => {
+      const next = { ...current, [id]: checked };
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(HUD_VISIBILITY_STORAGE_KEY, JSON.stringify(next));
+      }
+      return next;
+    });
+  };
+
+  const resetHudLayout = () => {
+    if (typeof window !== 'undefined') {
+      HUD_WIDGET_OPTIONS.forEach((option) => window.localStorage.removeItem(`${HUD_LAYOUT_STORAGE_PREFIX}${option.id}`));
+      window.localStorage.setItem(HUD_VISIBILITY_STORAGE_KEY, JSON.stringify(DEFAULT_HUD_VISIBILITY));
+    }
+    setVisibleHudWidgets(DEFAULT_HUD_VISIBILITY);
+    setLayoutResetKey((current) => current + 1);
+  };
+
+  const hudControls = viewMode === 'LIVE' || viewMode === 'HISTORICAL' ? (
+    <div
+      className="glass-panel"
+      style={{
+        position: isNarrowViewport ? 'relative' : 'fixed',
+        top: isNarrowViewport ? undefined : '18.25rem',
+        left: isNarrowViewport ? undefined : '1.5rem',
+        zIndex: 90,
+        width: isNarrowViewport ? '100%' : 300,
+        padding: '0.8rem',
+        pointerEvents: 'auto',
+        display: 'grid',
+        gap: '0.65rem',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+        <strong style={{ fontSize: '0.72rem', color: 'var(--accent-cyan)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>HUD Controls</strong>
+        <button
+          type="button"
+          onClick={resetHudLayout}
+          style={{
+            border: '1px solid var(--border-light)',
+            borderRadius: 999,
+            background: 'rgba(255,255,255,0.05)',
+            color: 'var(--text-secondary)',
+            padding: '0.25rem 0.55rem',
+            fontSize: '0.7rem',
+            cursor: 'pointer',
+          }}
+        >
+          Reset
+        </button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: isNarrowViewport ? 'repeat(2, minmax(0, 1fr))' : '1fr', gap: '0.45rem' }}>
+        {HUD_WIDGET_OPTIONS.map((option) => (
+          <label
+            key={option.id}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              color: 'var(--text-secondary)',
+              fontSize: '0.78rem',
+              lineHeight: 1.25,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={visibleHudWidgets[option.id]}
+              onChange={(event) => updateHudVisibility(option.id, event.target.checked)}
+              style={{ accentColor: 'var(--accent-cyan)' }}
+            />
+            <span>{option.label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  ) : null;
 
   useEffect(() => {
     const mode = searchParams.get('mode');
@@ -270,6 +397,9 @@ function App() {
 
               {isNarrowViewport ? (
                 <div className="mobile-hud-stack">
+                  {hudControls}
+
+                  {visibleHudWidgets.leaderboard && (
                   <div className="glass-panel" style={{ padding: '0.9rem' }}>
                     {leaderboard && (
                       <LiveTiming
@@ -280,15 +410,21 @@ function App() {
                       />
                     )}
                   </div>
+                  )}
 
+                  {visibleHudWidgets.next_race_intelligence && (
                   <div className="glass-panel" style={{ padding: '0.9rem' }}>
                     <NextRaceIntelligence nextSession={nextRaceSchedule} compact />
                   </div>
+                  )}
 
+                  {visibleHudWidgets.live_race_telemetry && (
                   <div className="glass-panel" style={{ padding: '0.9rem' }}>
                     <LiveRaceTelemetryPanel nextSession={nextSchedule} compact />
                   </div>
+                  )}
 
+                  {visibleHudWidgets.focused_driver && (
                   <div className="glass-panel" style={{ padding: '0.9rem' }}>
                     {session && (
                       <MaxTracker
@@ -298,11 +434,15 @@ function App() {
                       />
                     )}
                   </div>
+                  )}
 
+                  {visibleHudWidgets.session_info && (
                   <div className="glass-panel" style={{ padding: '0.9rem' }}>
                     {session && <SessionInfo session={session} />}
                   </div>
+                  )}
 
+                  {visibleHudWidgets.data_pipeline && (
                   <div className="glass-panel" style={{ padding: '0.9rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--accent-cyan)' }}>
@@ -311,10 +451,14 @@ function App() {
                       <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>LATENCY: 42MS</span>
                     </div>
                   </div>
+                  )}
                 </div>
               ) : (
                 <>
-                  <DraggableWidget id="leaderboard" title={viewMode === 'LIVE' ? 'LIVE TIMING & INTERVALS' : 'RACE CLASSIFICATION'} defaultX={20} defaultY={80} width={350}>
+                  {hudControls}
+
+                  {visibleHudWidgets.leaderboard && (
+                  <DraggableWidget key={`leaderboard-${layoutResetKey}`} id="leaderboard" title={viewMode === 'LIVE' ? 'LIVE TIMING & INTERVALS' : 'RACE CLASSIFICATION'} defaultX={340} defaultY={80} width={350} defaultHeight={330} minHeight={220}>
                     {leaderboard && (
                       <LiveTiming
                         data={leaderboard}
@@ -324,16 +468,22 @@ function App() {
                       />
                     )}
                   </DraggableWidget>
+                  )}
 
-                  <DraggableWidget id="live_race_telemetry" title="MIAMI LIVE RACE TELEMETRY" defaultX={390} defaultY={80} width={620}>
+                  {visibleHudWidgets.live_race_telemetry && (
+                  <DraggableWidget key={`live_race_telemetry-${layoutResetKey}`} id="live_race_telemetry" title="MIAMI LIVE RACE TELEMETRY" defaultX={710} defaultY={80} width={620} defaultHeight={620} minWidth={440} minHeight={360}>
                     <LiveRaceTelemetryPanel nextSession={nextSchedule} />
                   </DraggableWidget>
+                  )}
 
-                  <DraggableWidget id="next_race_intelligence" title="NEXT RACE INTELLIGENCE" defaultX={390} defaultY={700} width={620}>
+                  {visibleHudWidgets.next_race_intelligence && (
+                  <DraggableWidget key={`next_race_intelligence-${layoutResetKey}`} id="next_race_intelligence" title="NEXT RACE INTELLIGENCE" defaultX={710} defaultY={730} width={620} defaultHeight={520} minWidth={420} minHeight={340}>
                     <NextRaceIntelligence nextSession={nextRaceSchedule} />
                   </DraggableWidget>
+                  )}
 
-                  <DraggableWidget id="focused_driver" title="DRIVER FOCUS" defaultX={rightRailX} defaultY={80} width={340}>
+                  {visibleHudWidgets.focused_driver && (
+                  <DraggableWidget key={`focused_driver-${layoutResetKey}`} id="focused_driver" title="DRIVER FOCUS" defaultX={rightRailX} defaultY={80} width={340} defaultHeight={330} minHeight={240}>
                     {session && (
                       <MaxTracker
                         currentPos={leaderboard?.find((d) => d.name_acronym === 'VER')?.position || null}
@@ -342,12 +492,16 @@ function App() {
                       />
                     )}
                   </DraggableWidget>
+                  )}
 
-                  <DraggableWidget id="session_info" title="SESSION" defaultX={rightRailX} defaultY={470} width={340}>
+                  {visibleHudWidgets.session_info && (
+                  <DraggableWidget key={`session_info-${layoutResetKey}`} id="session_info" title="SESSION" defaultX={rightRailX} defaultY={470} width={340} defaultHeight={260} minHeight={220}>
                     {session && <SessionInfo session={session} />}
                   </DraggableWidget>
+                  )}
 
-                  <DraggableWidget id="data_pipeline" title="PIPELINE" defaultX={rightRailX} defaultY={1000} width={340}>
+                  {visibleHudWidgets.data_pipeline && (
+                  <DraggableWidget key={`data_pipeline-${layoutResetKey}`} id="data_pipeline" title="PIPELINE" defaultX={rightRailX} defaultY={760} width={340} defaultHeight={120} minHeight={100}>
                     <div style={{ width: '320px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--accent-cyan)' }}>
                         {viewMode === 'LIVE' ? 'SYNCHRONIZED' : 'ARCHIVED'}
@@ -357,6 +511,7 @@ function App() {
                       </span>
                     </div>
                   </DraggableWidget>
+                  )}
                 </>
               )}
             </div>

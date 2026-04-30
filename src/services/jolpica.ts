@@ -187,8 +187,12 @@ function getDriverDisplay(result: JolpicaResult) {
 }
 
 export async function fetchLatestCompletedRaceSummary(): Promise<CompletedRaceSummary> {
+  return fetchCompletedRaceSummaryFromEndpoint('https://api.jolpi.ca/ergast/f1/current/last/results.json');
+}
+
+async function fetchCompletedRaceSummaryFromEndpoint(endpoint: string): Promise<CompletedRaceSummary> {
   try {
-    const response = await fetch('https://api.jolpi.ca/ergast/f1/current/last/results.json', {
+    const response = await fetch(endpoint, {
       cache: 'no-store',
     });
     if (!response.ok) {
@@ -234,6 +238,31 @@ export async function fetchLatestCompletedRaceSummary(): Promise<CompletedRaceSu
       fastestLap,
     };
   } catch (err: unknown) {
-    throw new Error('Unable to load latest completed race summary from Jolpica.', { cause: err });
+    throw new Error('Unable to load completed race summary from Jolpica.', { cause: err });
   }
+}
+
+function normalizeRaceName(value: string) {
+  return value.toLowerCase().replace(/grand prix|gp/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+export async function fetchRaceSummary(year: string, round: string): Promise<CompletedRaceSummary> {
+  return fetchCompletedRaceSummaryFromEndpoint(`https://api.jolpi.ca/ergast/f1/${year}/${round}/results.json`);
+}
+
+export async function fetchPreviousEditionRaceSummary(grandPrix: string, currentYear: number): Promise<CompletedRaceSummary> {
+  const targetYear = String(currentYear - 1);
+  const search = normalizeRaceName(grandPrix);
+  const races = await fetchSeasonRaces(targetYear);
+  const match = races.find((race) => {
+    const raceName = 'raceName' in race && typeof race.raceName === 'string' ? race.raceName : '';
+    const normalized = normalizeRaceName(raceName);
+    return search.split(' ').every((part) => normalized.includes(part)) || normalized.includes(search) || search.includes(normalized);
+  });
+
+  if (!match?.round) {
+    throw new Error(`No previous edition found for ${grandPrix} in ${targetYear}.`);
+  }
+
+  return fetchRaceSummary(targetYear, match.round);
 }

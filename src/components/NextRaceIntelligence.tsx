@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BarChart3, CalendarDays, Gauge, Timer, Trophy } from 'lucide-react';
-import { fetchLatestCompletedRaceSummary, type CompletedRaceSummary } from '../services/jolpica';
+import { fetchLatestCompletedRaceSummary, fetchPreviousEditionRaceSummary, type CompletedRaceSummary } from '../services/jolpica';
 import { fetchPredictionForecast, type PredictionForecastResponse } from '../services/predictionsApi';
 import type { DashboardSession } from '../types/f1';
 
@@ -14,6 +14,7 @@ type NextRaceIntelligenceProps = {
 const FALLBACK_NEXT_RACE = 'Miami Grand Prix';
 const GENERIC_SESSION_NAMES = new Set(['', 'Race', 'NO LIVE SESSION', 'TELEMETRY OFFLINE']);
 const INTELLIGENCE_TIMEOUT_MS = 6_500;
+const PREVIOUS_EDITION_TIMEOUT_MS = 7_500;
 
 function formatSchedule(value?: string) {
   if (!value) return 'Schedule pending';
@@ -116,7 +117,11 @@ export default function NextRaceIntelligence({ nextSession, compact = false }: N
         setLoading(true);
         setError(null);
         const [summaryResult, forecastResult] = await Promise.allSettled([
-          withTimeout(fetchLatestCompletedRaceSummary(), INTELLIGENCE_TIMEOUT_MS, 'Previous-race summary'),
+          withTimeout(
+            fetchPreviousEditionRaceSummary(nextRaceName, nextRaceYear).catch(() => fetchLatestCompletedRaceSummary()),
+            PREVIOUS_EDITION_TIMEOUT_MS,
+            'Previous-edition summary',
+          ),
           withTimeout(fetchPredictionForecast({ grandPrix: nextRaceName, year: nextRaceYear }), INTELLIGENCE_TIMEOUT_MS, 'Prediction forecast'),
         ]);
 
@@ -187,7 +192,7 @@ export default function NextRaceIntelligence({ nextSession, compact = false }: N
       {raceSummary ? (
         <div style={{ display: 'grid', gap: '0.7rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center' }}>
-            <StatLabel icon={<Trophy size={14} />} label={`Previous race: ${raceSummary.raceName}`} />
+            <StatLabel icon={<Trophy size={14} />} label={`Previous edition: ${raceSummary.raceName}`} />
             <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{formatRaceDate(raceSummary.date)}</span>
           </div>
 

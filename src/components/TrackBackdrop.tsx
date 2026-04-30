@@ -83,10 +83,9 @@ export default function TrackBackdrop({ session }: TrackBackdropProps) {
             style={{
               position: 'absolute',
               inset: 0,
-              backgroundImage:
-                'linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px)',
-              backgroundSize: '64px 64px',
-              maskImage: 'radial-gradient(circle at center, black 0%, transparent 72%)',
+              background:
+                'linear-gradient(90deg, transparent 0%, rgba(21, 209, 204, 0.055) 48%, transparent 100%)',
+              maskImage: 'linear-gradient(180deg, transparent 0%, black 22%, black 74%, transparent 100%)',
             }}
           />
           <div
