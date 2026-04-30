@@ -9,6 +9,9 @@ circuit asset exists. The current rules are:
 - Render the asset through `src/components/TrackBackdrop.tsx`.
 - Force SVG paths to the dashboard neon/glass palette at render time.
 - Hide raw SVG labels, dots, numbered markers, metadata, patterns, and fills.
+- Strip tiny SVG marker paths from imported circuit assets; Miami uses these for
+  turn-number dots.
+- Force circuit strokes to render solid, without dashed or dotted overlays.
 - Keep the subtle full-screen glow band, but do not add dot grids or point
   markers over the circuit.
 - Preserve the labels that state whether the backdrop is using a `Circuit Asset`

@@ -6,8 +6,26 @@ interface TrackBackdropProps {
   session: DashboardSession | null;
 }
 
+function removeSmallSvgMarkerPaths(svg: string) {
+  return svg.replace(/<path\b[^>]*\bd="([^"]*)"[^>]*\/?>/g, (pathMarkup, pathData: string) => {
+    const compactPathLength = pathData.replace(/\s+/g, '').length;
+    return compactPathLength < 240 ? '' : pathMarkup;
+  });
+}
+
+function sanitizeTrackSvg(svg: string) {
+  return removeSmallSvgMarkerPaths(svg)
+    .replace(/<metadata\b[\s\S]*?<\/metadata>/gi, '')
+    .replace(/<defs\b[\s\S]*?<\/defs>/gi, '')
+    .replace(/<g\b[^>]*\baria-label="[^"]*"[^>]*>[\s\S]*?<\/g>/gi, '')
+    .replace(/<circle\b[^>]*\/?>/gi, '')
+    .replace(/<text\b[\s\S]*?<\/text>/gi, '')
+    .replace(/<rect\b[^>]*\/?>/gi, '');
+}
+
 function styleTrackSvg(svg: string) {
-  const styledSvg = svg.replace(
+  const sanitizedSvg = sanitizeTrackSvg(svg);
+  const styledSvg = sanitizedSvg.replace(
     '<svg ',
     '<svg class="track-asset-svg" preserveAspectRatio="xMidYMid meet" ',
   );
@@ -31,6 +49,7 @@ function styleTrackSvg(svg: string) {
         stroke-width: 3.4 !important;
         stroke-linecap: round !important;
         stroke-linejoin: round !important;
+        stroke-dasharray: none !important;
         vector-effect: non-scaling-stroke;
       }
       .track-asset-svg path:first-of-type {
@@ -47,7 +66,8 @@ function styleTrackSvg(svg: string) {
       .track-asset-svg [aria-label],
       .track-asset-svg metadata,
       .track-asset-svg pattern,
-      .track-asset-svg clipPath {
+      .track-asset-svg clipPath,
+      .track-asset-svg defs {
         display: none !important;
       }
     </style>
@@ -117,7 +137,6 @@ export default function TrackBackdrop({ session }: TrackBackdropProps) {
               fill="none"
               stroke="rgba(255,255,255,0.08)"
               strokeWidth="2"
-              strokeDasharray="4 16"
               strokeLinecap="round"
             />
           </g>
@@ -130,7 +149,6 @@ export default function TrackBackdrop({ session }: TrackBackdropProps) {
             strokeWidth="3"
             strokeLinecap="round"
           />
-          <circle cx={startPoint.x} cy={startPoint.y} r="3.5" fill="rgba(255,255,255,0.85)" />
         </svg>
       )}
       <div
