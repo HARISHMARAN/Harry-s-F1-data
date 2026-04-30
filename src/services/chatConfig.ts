@@ -1,11 +1,9 @@
-const DEFAULT_CHAT_API_BASE = 'https://harry-s-f1-api-s.vercel.app';
-
 export function getChatApiBase() {
-  return (
+  return ((
     process.env.NEXT_PUBLIC_FORMULA_CHAT_API_URL ??
     process.env.NEXT_PUBLIC_CHAT_API_BASE ??
-    DEFAULT_CHAT_API_BASE
-  );
+    ''
+  ).replace(/\/$/, ''));
 }
 
 export function getChatMode() {
@@ -14,4 +12,3 @@ export function getChatMode() {
   const apiBase = getChatApiBase();
   return apiBase ? 'online' : 'offline';
 }
-

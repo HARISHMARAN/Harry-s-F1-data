@@ -47,7 +47,7 @@ const CONFIRMED_CALENDAR_ITEMS: NewsItem[] = [
 
 function decodeEntities(value: string) {
   return value
-    .replace(/<!\[CDATA\[(.*?)\]\]>/gs, '$1')
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')

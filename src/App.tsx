@@ -256,7 +256,7 @@ function App() {
       )}
 
       {/* FOREGROUND CONTENT */}
-      <div style={{ position: 'relative', zIndex: 100, pointerEvents: 'none', width: '100%' }}>
+      <div style={{ position: 'relative', zIndex: 300, pointerEvents: 'none', width: '100%' }}>
         <div style={{ pointerEvents: 'auto' }}>
           {/* Top Placeholder: Primary Mode Switch */}
           <div className="top-placeholder">
@@ -340,7 +340,7 @@ function App() {
         </div>
       </div>
 
-      <div style={{ position: 'relative', zIndex: 101, width: '100%' }}>
+      <div style={{ position: 'relative', zIndex: 100, width: '100%' }}>
         {viewMode === 'CHAT' ? (
           <ChatView />
         ) : viewMode === 'PREDICTIONS' ? (

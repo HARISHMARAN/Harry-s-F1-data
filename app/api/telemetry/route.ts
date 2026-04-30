@@ -50,6 +50,8 @@ type TelemetryPayload =
 const FRESH_TTL_MS = 5_000;
 const STALE_TTL_MS = 60_000;
 const MAX_CAR_DATA_DRIVERS = 6;
+const TELEMETRY_RESPONSE_TIMEOUT_MS = 9_000;
+const FALLBACK_NEXT_SESSION_TIMEOUT_MS = 4_000;
 
 type DriverTelemetryInsight = {
   driver_number: number;
@@ -120,6 +122,16 @@ async function fetchWithRetry<T>(fn: () => Promise<T>, maxAttempts = 3) {
     }
   }
   throw new Error("Retry attempts exhausted");
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => reject(new Error(`${label} timed out`)), timeoutMs);
+    promise
+      .then(resolve)
+      .catch(reject)
+      .finally(() => clearTimeout(timeoutId));
+  });
 }
 
 function latestByDate<T extends { date?: string | null }>(rows: T[]) {
@@ -419,7 +431,7 @@ export async function GET() {
       });
     }
 
-    const telemetry = await refreshTelemetry();
+    const telemetry = await withTimeout(refreshTelemetry(), TELEMETRY_RESPONSE_TIMEOUT_MS, "Telemetry refresh");
     return NextResponse.json(telemetry, {
       status: 200,
       headers: { "x-telemetry-cache": "miss" },
@@ -431,7 +443,7 @@ export async function GET() {
         headers: { "x-telemetry-cache": "stale-on-error" },
       });
     }
-    const nextSession = await getNextSession().catch(() => null);
+    const nextSession = await withTimeout(getNextSession(), FALLBACK_NEXT_SESSION_TIMEOUT_MS, "Next session fallback").catch(() => null);
     return NextResponse.json(
       {
         status: "no_live",
