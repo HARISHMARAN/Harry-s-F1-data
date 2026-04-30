@@ -190,7 +190,9 @@ export default function PredictionStudio() {
           <p style={{ margin: 0, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1.4px', fontSize: '0.75rem' }}>
             Prediction Studio
           </p>
-          <h2 style={{ margin: '0.4rem 0 0', fontSize: '1.9rem' }}>Miami Weekend Forecast</h2>
+          <h2 style={{ margin: '0.4rem 0 0', fontSize: '1.9rem' }}>
+            {forecast?.title ?? 'Miami Weekend Forecast'}
+          </h2>
           <p style={{ margin: '0.6rem 0 0', color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: 850 }}>
             Session-by-session predictions for practice, sprint qualifying, qualifying, and the race. During a live session, OpenF1 lap data and race-control signals reweight the cards automatically.
           </p>
@@ -300,7 +302,7 @@ export default function PredictionStudio() {
             </div>
             <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
               Data signals: {forecast.dataSignals.latestRaceWinner ? `latest race winner ${forecast.dataSignals.latestRaceWinner}` : 'no latest race'}{' '}
-              {forecast.dataSignals.sameRoundWinner ? `- Miami history ${forecast.dataSignals.sameRoundWinner}` : ''}
+              {forecast.dataSignals.sameRoundWinner ? `- race history ${forecast.dataSignals.sameRoundWinner}` : ''}
               {forecast.dataSignals.liveLeader ? `- live leader ${forecast.dataSignals.liveLeader}` : '- no live leader yet'}
             </p>
             <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.78rem' }}>

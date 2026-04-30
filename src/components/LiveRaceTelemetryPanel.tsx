@@ -193,6 +193,7 @@ export default function LiveRaceTelemetryPanel({ nextSession, compact = false }:
   const intelligence = payload?.telemetry_intelligence ?? null;
   const sessionLabel = intelligence?.session_name ?? nextSession?.session_name ?? 'Miami Grand Prix';
   const sessionType = intelligence?.session_type ?? nextSession?.session_type ?? 'Race';
+  const raceLabel = nextSession?.circuit_short_name ?? nextSession?.location ?? 'Miami';
   const isLive = payload?.status === 'live';
   const weather = intelligence?.weather ?? null;
   const drivers = useMemo(() => intelligence?.drivers.slice(0, compact ? 6 : 10) ?? [], [compact, intelligence]);
@@ -207,13 +208,13 @@ export default function LiveRaceTelemetryPanel({ nextSession, compact = false }:
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: isLive ? 'var(--accent-success)' : 'var(--accent-f1)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 800 }}>
             <Activity size={14} />
-            <span>{isLive ? 'Live OpenF1 feed' : 'Miami live window armed'}</span>
+            <span>{isLive ? 'Live OpenF1 feed' : `${raceLabel} live window armed`}</span>
           </div>
           <h2 style={{ margin: '0.3rem 0 0', fontSize: compact ? '1.15rem' : '1.45rem', lineHeight: 1.12 }}>
             {sessionLabel} Telemetry
           </h2>
           <p style={{ margin: '0.35rem 0 0', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
-            {isLive ? `${sessionType} data is being refreshed every ${REFRESH_MS / 1000}s.` : `Next Miami session: ${formatSchedule(nextStart)}`}
+            {isLive ? `${sessionType} data is being refreshed every ${REFRESH_MS / 1000}s.` : `Next ${raceLabel} session: ${formatSchedule(nextStart)}`}
           </p>
         </div>
         <div style={{ textAlign: 'right', minWidth: 92 }}>
@@ -271,7 +272,7 @@ export default function LiveRaceTelemetryPanel({ nextSession, compact = false }:
           </div>
         )) : (
           <div style={{ padding: '0.85rem', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
-            Live driver tyre, pit-stop, and lap-age rows will populate when OpenF1 publishes Miami session data.
+            Live driver tyre, pit-stop, and lap-age rows will populate when OpenF1 publishes {raceLabel} session data.
           </div>
         )}
       </div>

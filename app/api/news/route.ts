@@ -20,6 +20,8 @@ const FEEDS = [
   { source: 'RACER F1', url: 'https://racer.com/f1/feed/' },
 ] as const;
 
+const FEED_TIMEOUT_MS = 4_000;
+
 const CONFIRMED_CALENDAR_ITEMS: NewsItem[] = [
   {
     id: 'confirmed-turkiye-2027',
@@ -111,13 +113,21 @@ function parseFeed(xml: string, source: string): NewsItem[] {
 }
 
 async function fetchFeed(feed: typeof FEEDS[number]) {
-  const response = await fetch(feed.url, {
-    cache: 'no-store',
-    headers: { 'User-Agent': 'HarryF1Dashboard/1.0' },
-  });
-  if (!response.ok) return [];
-  const xml = await response.text();
-  return parseFeed(xml, feed.source);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FEED_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(feed.url, {
+      cache: 'no-store',
+      headers: { 'User-Agent': 'HarryF1Dashboard/1.0' },
+      signal: controller.signal,
+    });
+    if (!response.ok) return [];
+    const xml = await response.text();
+    return parseFeed(xml, feed.source);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 function dedupe(items: NewsItem[]) {

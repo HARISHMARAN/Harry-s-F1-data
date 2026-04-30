@@ -6,6 +6,55 @@ interface TrackBackdropProps {
   session: DashboardSession | null;
 }
 
+function styleTrackSvg(svg: string) {
+  const styledSvg = svg.replace(
+    '<svg ',
+    '<svg class="track-asset-svg" preserveAspectRatio="xMidYMid meet" ',
+  );
+
+  return `
+    <style>
+      .track-asset-shell {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .track-asset-svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+        overflow: visible;
+      }
+      .track-asset-svg path {
+        fill: none !important;
+        stroke: rgba(21, 209, 204, 0.9) !important;
+        stroke-width: 3.4 !important;
+        stroke-linecap: round !important;
+        stroke-linejoin: round !important;
+        vector-effect: non-scaling-stroke;
+      }
+      .track-asset-svg path:first-of-type {
+        stroke: rgba(255, 255, 255, 0.2) !important;
+        stroke-width: 18 !important;
+      }
+      .track-asset-svg path:nth-of-type(2) {
+        stroke: rgba(234, 51, 35, 0.65) !important;
+        stroke-width: 7 !important;
+      }
+      .track-asset-svg rect,
+      .track-asset-svg circle,
+      .track-asset-svg text,
+      .track-asset-svg [aria-label],
+      .track-asset-svg metadata,
+      .track-asset-svg pattern,
+      .track-asset-svg clipPath {
+        display: none !important;
+      }
+    </style>
+    <div class="track-asset-shell">${styledSvg}</div>
+  `;
+}
+
 export default function TrackBackdrop({ session }: TrackBackdropProps) {
   const seed = `${session?.circuit_short_name ?? session?.location ?? 'circuit'}-${session?.session_key ?? ''}`;
   const points = normalizeTrack(generateTrackPoints(seed));
@@ -14,7 +63,7 @@ export default function TrackBackdrop({ session }: TrackBackdropProps) {
   const raceLabel = session?.session_name ?? 'Race Context';
   const startPoint = points[0] ?? { x: 0, y: 0 };
   const trackSvg = getTrackSvgForCircuit(`${session?.circuit_short_name ?? ''} ${session?.location ?? ''} ${session?.country_name ?? ''}`);
-  const trackSvgMarkup = trackSvg?.replace('<svg ', '<svg style="width:100%;height:100%;display:block;" ') ?? null;
+  const trackSvgMarkup = trackSvg ? styleTrackSvg(trackSvg) : null;
 
   return (
     <div
@@ -22,24 +71,36 @@ export default function TrackBackdrop({ session }: TrackBackdropProps) {
         position: 'absolute',
         inset: 0,
         zIndex: 1,
-        opacity: 0.88,
+        opacity: 0.92,
         background:
-          'radial-gradient(circle at 20% 15%, rgba(21, 209, 204, 0.14), transparent 28%), radial-gradient(circle at 80% 10%, rgba(234, 51, 35, 0.08), transparent 22%), linear-gradient(135deg, rgba(8, 10, 14, 0.98), rgba(12, 16, 22, 0.94) 45%, rgba(6, 8, 12, 0.98))',
+          'radial-gradient(circle at 22% 16%, rgba(21, 209, 204, 0.18), transparent 30%), radial-gradient(circle at 78% 12%, rgba(234, 51, 35, 0.12), transparent 22%), linear-gradient(135deg, rgba(7, 10, 14, 0.98), rgba(12, 17, 24, 0.94) 46%, rgba(5, 8, 12, 0.98))',
       }}
     >
       {trackSvgMarkup ? (
-        <div
-          aria-hidden
-          style={{
-            width: '100%',
-            height: '100%',
-            padding: '7vh 5vw',
-            opacity: 0.42,
-            filter: 'drop-shadow(0 0 28px rgba(21, 209, 204, 0.28)) saturate(0.95)',
-            mixBlendMode: 'screen',
-          }}
-          dangerouslySetInnerHTML={{ __html: trackSvgMarkup }}
-        />
+        <>
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage:
+                'linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px)',
+              backgroundSize: '64px 64px',
+              maskImage: 'radial-gradient(circle at center, black 0%, transparent 72%)',
+            }}
+          />
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              inset: '5vh 4vw 6vh',
+              opacity: 0.78,
+              filter: 'drop-shadow(0 0 24px rgba(21, 209, 204, 0.7)) drop-shadow(0 0 80px rgba(0, 147, 204, 0.3))',
+              mixBlendMode: 'screen',
+            }}
+            dangerouslySetInnerHTML={{ __html: trackSvgMarkup }}
+          />
+        </>
       ) : (
         <svg viewBox="0 0 860 560" style={{ width: '100%', height: '100%' }} aria-hidden>
           <defs>

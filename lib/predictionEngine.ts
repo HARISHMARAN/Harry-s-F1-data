@@ -261,6 +261,10 @@ function sessionLabel(id: string) {
   return 'Main Race';
 }
 
+function weekendLabel(raceName: string) {
+  return raceName.replace(/\s+Grand Prix$/i, '').trim() || raceName;
+}
+
 function pickWeekendSession(sessions: OpenF1Session[], id: WeekendPrediction['id']) {
   if (id === 'practice1') return sessions.find((session) => session.session_name === 'Practice 1') ?? null;
   if (id === 'practice2') return sessions.find((session) => session.session_name === 'Practice 2') ?? null;
@@ -273,6 +277,7 @@ function pickWeekendSession(sessions: OpenF1Session[], id: WeekendPrediction['id
 function buildPredictionForSession(input: {
   id: string;
   session: OpenF1Session | null;
+  raceLabel: string;
   baselineScores: Map<string, number>;
   completedSignals: Array<{ session: OpenF1Session; result: SessionResult }>;
   sessionResult: SessionResult | null;
@@ -291,8 +296,8 @@ function buildPredictionForSession(input: {
       winner: 'N/A',
       podium: [],
       basis: input.id === 'practice2'
-        ? 'Miami is scheduled as a sprint weekend in OpenF1, so Free Practice 2 is not listed.'
-        : 'This session is not listed in the OpenF1 Miami weekend schedule.',
+        ? `${input.raceLabel} is scheduled as a sprint weekend in OpenF1, so Free Practice 2 is not listed.`
+        : `This session is not listed in the OpenF1 ${input.raceLabel} weekend schedule.`,
       resultSource: 'not_scheduled',
       liveSignals: [],
       unavailableReason: 'Not scheduled for this Grand Prix weekend.',
@@ -314,7 +319,7 @@ function buildPredictionForSession(input: {
   const confidence = scores.size ? confidenceFromScores(scores, status === 'scheduled' ? 54 : 60, boost) : 0;
   const basis = input.sessionResult?.rows.length
     ? `${input.sessionResult.note} Forecast reweighted with ${input.sessionResult.rows.slice(0, 3).map((row) => row.driverCode).join(', ')}.`
-    : input.sessionResult?.note ?? 'Pre-session forecast based on recent race form, circuit history, and any earlier Miami weekend sessions.';
+    : input.sessionResult?.note ?? `Pre-session forecast based on recent race form, circuit history, and any earlier ${input.raceLabel} weekend sessions.`;
 
   return {
     id: input.id,
@@ -352,7 +357,7 @@ function buildNarrative(winner: string, latestWinner?: string, sameRoundWinner?:
   const parts = [
     `The current race model projects ${winner} for the main race`,
     latestWinner ? `recent form starts from ${latestWinner}` : null,
-    sameRoundWinner ? `Miami history adds weight to ${sameRoundWinner}` : null,
+    sameRoundWinner ? `same-race history adds weight to ${sameRoundWinner}` : null,
     liveLeader ? `the latest OpenF1 session leader is ${liveLeader}` : null,
     circuit ? `at ${circuit}` : null,
   ].filter(Boolean);
@@ -388,6 +393,7 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
   const raceName = raceSession?.circuit_short_name
     ? `${raceSession.circuit_short_name} Grand Prix`
     : rawSearch || nextRace?.session_name || 'Next Grand Prix';
+  const raceLabel = weekendLabel(raceName);
 
   const selectedRace = seasonRaces.find((race) => {
     const raceNameNormalized = normalize(race.raceName);
@@ -398,7 +404,7 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
   const baselineScores = new Map<string, number>();
   const factors: string[] = [];
   const sources = [
-    'OpenF1 Miami weekend schedule',
+    `OpenF1 ${raceLabel} weekend schedule`,
     'OpenF1 live/session lap data',
     'Jolpica latest completed race results',
   ];
@@ -462,6 +468,7 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
     return buildPredictionForSession({
       id,
       session,
+      raceLabel,
       baselineScores,
       completedSignals,
       sessionResult: result,
@@ -477,9 +484,9 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
     .sort((a, b) => Date.parse(b.session.date_start) - Date.parse(a.session.date_start))[0]?.session.session_name ?? null;
 
   return {
-    title: 'Miami Weekend Prediction Studio',
+    title: `${raceLabel} Weekend Prediction Studio`,
     raceName,
-    roundLabel: selectedRace ? `Round ${selectedRace.round}` : 'Miami weekend',
+    roundLabel: selectedRace ? `Round ${selectedRace.round}` : `${raceLabel} weekend`,
     confidence: racePrediction?.confidence ?? 0,
     winner: racePrediction?.winner ?? 'TBD',
     podium: racePrediction?.podium ?? [],
