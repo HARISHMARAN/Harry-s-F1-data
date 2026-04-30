@@ -191,7 +191,7 @@ export default function LiveRaceTelemetryPanel({ nextSession, compact = false }:
   const nextStart = payload?.next_session?.date_start ?? nextSession?.date_start ?? null;
 
   return (
-    <section style={{ width: compact ? '100%' : '620px', maxWidth: '100%', display: 'grid', gap: '0.9rem' }}>
+    <section style={{ width: '100%', maxWidth: '100%', minWidth: 0, minHeight: 0, display: 'grid', alignContent: 'start', gap: '0.9rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'flex-start' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: isLive ? 'var(--accent-success)' : 'var(--accent-f1)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 800 }}>
@@ -226,7 +226,7 @@ export default function LiveRaceTelemetryPanel({ nextSession, compact = false }:
         </div>
       ) : null}
 
-      <div style={{ display: 'grid', gridTemplateColumns: compact ? 'repeat(2, minmax(0, 1fr))' : 'repeat(6, minmax(0, 1fr))', gap: '0.55rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: compact ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(92px, 1fr))', gap: '0.55rem' }}>
         <MetricTile icon={<Gauge size={13} />} label="Track" value={formatValue(weather?.track_temperature, ' C')} />
         <MetricTile icon={<Timer size={13} />} label="Air" value={formatValue(weather?.air_temperature, ' C')} />
         <MetricTile icon={<Droplets size={13} />} label="Humidity" value={formatValue(weather?.humidity, '%')} />

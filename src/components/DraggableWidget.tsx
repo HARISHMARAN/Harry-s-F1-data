@@ -13,6 +13,8 @@ interface DraggableWidgetProps {
 }
 
 const LAYOUT_VERSION = 'miami-live-telemetry-v3';
+const VIEWPORT_PADDING = 16;
+const VIEWPORT_BOTTOM_PADDING = 48;
 
 type WidgetLayout = {
   x: number;
@@ -39,12 +41,35 @@ export default function DraggableWidget({
   const [isResizing, setIsResizing] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
   const resizeRef = useRef<{ startX: number; startY: number; initialWidth: number; initialHeight: number } | null>(null);
+  const widgetRef = useRef<HTMLDivElement | null>(null);
   const layoutRef = useRef(layout);
   const hasSavedPositionRef = useRef(false);
 
   useEffect(() => {
     layoutRef.current = layout;
   }, [layout]);
+
+  function getViewportCoordinateBounds(widgetWidth: number, widgetHeight: number) {
+    const parentRect = widgetRef.current?.offsetParent instanceof HTMLElement
+      ? widgetRef.current.offsetParent.getBoundingClientRect()
+      : { left: 0, top: 0 };
+
+    const minX = VIEWPORT_PADDING - parentRect.left;
+    const maxX = window.innerWidth - parentRect.left - widgetWidth - VIEWPORT_PADDING;
+    const minY = VIEWPORT_PADDING - parentRect.top;
+    const maxY = window.innerHeight - parentRect.top - widgetHeight - VIEWPORT_BOTTOM_PADDING;
+
+    return {
+      minX,
+      maxX: Math.max(minX, maxX),
+      minY,
+      maxY: Math.max(minY, maxY),
+    };
+  }
+
+  function clampToViewport(value: number, min: number, max: number) {
+    return Math.max(min, Math.min(value, max));
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -56,12 +81,13 @@ export default function DraggableWidget({
           const parsed = JSON.parse(saved) as Partial<WidgetLayout>;
           if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
             const widgetWidth = typeof parsed.width === 'number' ? parsed.width : defaultWidth;
-            const boundedWidth = Math.max(minWidth, Math.min(widgetWidth, window.innerWidth - 32));
+            const boundedWidth = Math.max(minWidth, Math.min(widgetWidth, window.innerWidth - VIEWPORT_PADDING * 2));
             const boundedHeight = typeof parsed.height === 'number'
-              ? Math.max(minHeight, Math.min(parsed.height, window.innerHeight - 80))
+              ? Math.max(minHeight, Math.min(parsed.height, window.innerHeight - VIEWPORT_PADDING - VIEWPORT_BOTTOM_PADDING))
               : defaultHeight;
-            const boundedX = Math.max(16, Math.min(parsed.x, window.innerWidth - boundedWidth - 16));
-            const boundedY = Math.max(16, Math.min(parsed.y, window.innerHeight - 120));
+            const bounds = getViewportCoordinateBounds(boundedWidth, boundedHeight ?? minHeight);
+            const boundedX = clampToViewport(parsed.x, bounds.minX, bounds.maxX);
+            const boundedY = clampToViewport(parsed.y, bounds.minY, bounds.maxY);
             hasSavedPositionRef.current = true;
             setLayout({ x: boundedX, y: boundedY, width: boundedWidth, height: boundedHeight });
             return;
@@ -81,7 +107,10 @@ export default function DraggableWidget({
   useEffect(() => {
     if (hasSavedPositionRef.current) return;
     if (typeof window === 'undefined') return;
-    const frameId = window.requestAnimationFrame(() => setLayout({ x: defaultX, y: defaultY, width: defaultWidth, height: defaultHeight }));
+    const frameId = window.requestAnimationFrame(() => {
+      if (hasSavedPositionRef.current) return;
+      setLayout({ x: defaultX, y: defaultY, width: defaultWidth, height: defaultHeight });
+    });
     return () => window.cancelAnimationFrame(frameId);
   }, [defaultHeight, defaultWidth, defaultX, defaultY]);
 
@@ -117,8 +146,10 @@ export default function DraggableWidget({
       const newY = Math.round((dragRef.current.initialY + dy) / 20) * 20;
       
       const widgetWidth = layoutRef.current.width;
-      const boundedX = Math.max(16, Math.min(newX, window.innerWidth - widgetWidth - 16));
-      const boundedY = Math.max(16, Math.min(newY, window.innerHeight - 120));
+      const widgetHeight = layoutRef.current.height ?? minHeight;
+      const bounds = getViewportCoordinateBounds(widgetWidth, widgetHeight);
+      const boundedX = clampToViewport(newX, bounds.minX, bounds.maxX);
+      const boundedY = clampToViewport(newY, bounds.minY, bounds.maxY);
       
       setLayout((current) => ({ ...current, x: boundedX, y: boundedY }));
     };
@@ -140,23 +171,28 @@ export default function DraggableWidget({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, storageKey]);
+  }, [isDragging, minHeight, storageKey]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing || !resizeRef.current) return;
       const dx = e.clientX - resizeRef.current.startX;
       const dy = e.clientY - resizeRef.current.startY;
-      const maxWidth = window.innerWidth - layoutRef.current.x - 16;
-      const maxHeight = window.innerHeight - layoutRef.current.y - 80;
       const nextWidth = Math.round((resizeRef.current.initialWidth + dx) / 20) * 20;
       const nextHeight = Math.round((resizeRef.current.initialHeight + dy) / 20) * 20;
+      const boundedWidth = Math.max(minWidth, Math.min(nextWidth, window.innerWidth - VIEWPORT_PADDING * 2));
+      const boundedHeight = Math.max(minHeight, Math.min(nextHeight, window.innerHeight - VIEWPORT_PADDING - VIEWPORT_BOTTOM_PADDING));
 
-      setLayout((current) => ({
-        ...current,
-        width: Math.max(minWidth, Math.min(nextWidth, maxWidth)),
-        height: Math.max(minHeight, Math.min(nextHeight, maxHeight)),
-      }));
+      setLayout((current) => {
+        const bounds = getViewportCoordinateBounds(boundedWidth, boundedHeight);
+        return {
+          ...current,
+          x: clampToViewport(current.x, bounds.minX, bounds.maxX),
+          y: clampToViewport(current.y, bounds.minY, bounds.maxY),
+          width: boundedWidth,
+          height: boundedHeight,
+        };
+      });
     };
 
     const handleMouseUp = () => {
@@ -179,6 +215,7 @@ export default function DraggableWidget({
 
   return (
     <div
+      ref={widgetRef}
       className={`hud-widget ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''}`}
       style={{ left: layout.x, top: layout.y, width: layout.width, height: layout.height }}
     >
