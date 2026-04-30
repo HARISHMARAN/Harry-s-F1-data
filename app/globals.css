@@ -53,6 +53,122 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+.auth-shell {
+  min-height: 100vh;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: #050505;
+}
+
+.auth-card {
+  width: min(100%, 460px);
+  border: 1px solid rgba(21, 209, 204, 0.22);
+  border-radius: 8px;
+  background: rgba(9, 12, 16, 0.82);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px);
+  padding: 1.75rem;
+}
+
+.auth-kicker {
+  color: var(--accent-cyan);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  margin-bottom: 0.85rem;
+}
+
+.auth-card h1 {
+  font-size: 2.35rem;
+  line-height: 1;
+  margin-bottom: 1rem;
+  letter-spacing: 0;
+}
+
+.auth-card p {
+  color: var(--text-secondary);
+  line-height: 1.6;
+  font-size: 0.95rem;
+  margin-bottom: 1.25rem;
+}
+
+.auth-google-button {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: #f7f7f7;
+  color: #111318;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0.9rem 1rem;
+}
+
+.auth-google-button:hover {
+  background: #ffffff;
+}
+
+.auth-error {
+  color: #ff8a80;
+  margin-top: 1rem;
+  margin-bottom: 0;
+}
+
+.auth-user-pill {
+  position: fixed;
+  right: 1rem;
+  bottom: 4.5rem;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  max-width: min(320px, calc(100vw - 2rem));
+  border: 1px solid rgba(21, 209, 204, 0.28);
+  border-radius: 999px;
+  background: rgba(8, 12, 16, 0.86);
+  color: var(--text-primary);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(16px);
+  padding: 0.5rem 0.55rem 0.5rem 0.75rem;
+  font-size: 0.78rem;
+}
+
+.auth-user-pill span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auth-user-pill button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 520px) {
+  .auth-shell {
+    padding: 1rem;
+  }
+
+  .auth-card {
+    padding: 1.25rem;
+  }
+
+  .auth-card h1 {
+    font-size: 1.85rem;
+  }
+}
+
 .hud-widget {
   position: absolute;
   background: var(--hud-bg);

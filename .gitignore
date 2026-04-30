@@ -23,7 +23,7 @@ Thumbs.db
 
 # Coverage directories
 coverage/  
-test-results/
+test-results*/
 addons/f1-race-replay/cache/
 tsconfig.tsbuildinfo
 

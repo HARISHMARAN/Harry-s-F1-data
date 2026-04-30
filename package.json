@@ -18,6 +18,7 @@
     "hooks:install": "git config core.hooksPath .githooks"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.105.1",
     "cors": "^2.8.5",
     "express": "^5.2.1",
     "lucide-react": "^1.8.0",
