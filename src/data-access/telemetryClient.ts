@@ -2,6 +2,8 @@ import type { DashboardData } from '../types/f1';
 import { fetchJsonWithPolicy } from './http';
 import { telemetryResponseSchema, type TelemetryResponseDto } from './schemas';
 
+const MIAMI_FALLBACK_START = '2026-05-01T16:00:00+00:00';
+
 function formatLapTime(seconds: number | null | undefined) {
   if (!seconds || !Number.isFinite(seconds)) return '--:--.---';
   const minutes = Math.floor(seconds / 60);
@@ -127,21 +129,59 @@ const offlineFallbackDashboard = (): DashboardData => ({
 
 let lastGoodDashboard: DashboardData | null = null;
 
+function scheduledFallbackTelemetry(): TelemetryResponseDto {
+  return telemetryResponseSchema.parse({
+    status: 'no_live',
+    session: 'no-live-session',
+    timestamp: Math.floor(Date.now() / 1000),
+    drivers: [],
+    next_session: {
+      session_key: 11270,
+      session_name: 'Practice 1',
+      session_type: 'Practice',
+      country_name: 'United States',
+      location: 'Miami Gardens',
+      circuit_short_name: 'Miami',
+      date_start: MIAMI_FALLBACK_START,
+      date_end: '2026-05-01T17:30:00+00:00',
+    },
+    warnings: ['Using scheduled Miami fallback while live telemetry warms up.'],
+  });
+}
+
+function lastGoodTelemetryFallback(): TelemetryResponseDto | undefined {
+  if (!lastGoodDashboard) return undefined;
+  return telemetryResponseSchema.parse({
+    session: String(lastGoodDashboard.session.session_name ?? 'fallback-session'),
+    timestamp: Math.floor(Date.now() / 1000),
+    status: 'no_live',
+    drivers: [],
+    next_session: lastGoodDashboard.next_session
+      ? {
+          session_key: lastGoodDashboard.next_session.session_key,
+          session_name: lastGoodDashboard.next_session.session_name,
+          session_type: lastGoodDashboard.next_session.session_type,
+          country_name: lastGoodDashboard.next_session.country_name,
+          location: lastGoodDashboard.next_session.location,
+          circuit_short_name: lastGoodDashboard.next_session.circuit_short_name,
+          date_start: lastGoodDashboard.next_session.date_start,
+          date_end: lastGoodDashboard.next_session.date_end ?? null,
+        }
+      : undefined,
+  });
+}
+
 export async function getLiveDashboardData(): Promise<DashboardData> {
   try {
+    const fallbackTelemetry = lastGoodTelemetryFallback() ?? scheduledFallbackTelemetry();
     const result = await fetchJsonWithPolicy({
       url: '/api/telemetry',
       init: { cache: 'no-store' },
-      timeoutMs: 12_000,
-      retries: 2,
+      timeoutMs: 7_000,
+      retries: 0,
       schema: telemetryResponseSchema,
-      fallbackData: lastGoodDashboard ? telemetryResponseSchema.parse({
-        session: String(lastGoodDashboard.session.session_name ?? 'fallback-session'),
-        timestamp: Math.floor(Date.now() / 1000),
-        status: 'no_live',
-        drivers: [],
-      }) : undefined,
-      fallbackLabel: 'last good telemetry shape',
+      fallbackData: fallbackTelemetry,
+      fallbackLabel: lastGoodDashboard ? 'last good telemetry shape' : 'scheduled Miami fallback',
     });
 
     const mapped = mapTelemetryToDashboard(result.data);

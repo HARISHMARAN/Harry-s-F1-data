@@ -52,7 +52,7 @@ const dashboardReducer = (state: DashboardState, action: DashboardAction): Dashb
     case 'SET_ROUND':
       return { ...state, selectedRound: action.payload };
     case 'FETCH_START':
-      return { ...state, loading: true, errorMsg: null, dataState: state.session ? state.dataState : 'loading' };
+      return { ...state, loading: !state.session, errorMsg: null, dataState: state.session ? state.dataState : 'loading' };
     case 'FETCH_SUCCESS':
       return {
         ...state,
@@ -88,17 +88,36 @@ const dashboardReducer = (state: DashboardState, action: DashboardAction): Dashb
   }
 };
 
+const standbySession: DashboardSession = {
+  session_key: 'miami-standby',
+  session_name: 'Miami Grand Prix',
+  session_type: 'Race',
+  country_name: 'United States',
+  location: 'Miami Gardens',
+  circuit_short_name: 'Miami',
+  date_start: '2026-05-03T20:00:00Z',
+  current_lap: 'SCHEDULED',
+  status: 'NO_RACE',
+};
+
+const standbyMaxStats: MaxStats = {
+  best_lap: '--:--.---',
+  top_speed: '--',
+  started: 'STANDBY',
+  tyres: 'WAITING FOR LIVE FEED',
+};
+
 const initialState: DashboardState = {
   viewMode: 'LIVE',
-  session: null,
+  session: standbySession,
   leaderboard: [],
-  maxStats: null,
+  maxStats: standbyMaxStats,
   liveStatus: 'NO_RACE',
-  nextSession: null,
-  loading: true,
+  nextSession: standbySession,
+  loading: false,
   errorMsg: null,
-  dataState: 'loading',
-  warnings: [],
+  dataState: 'degraded',
+  warnings: ['Showing scheduled Miami standby while the live telemetry feed warms up.'],
   selectedYear: DEFAULT_YEAR,
   selectedRound: null,
   seasonRaces: [],

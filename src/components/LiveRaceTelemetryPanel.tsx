@@ -67,6 +67,31 @@ type LiveRaceTelemetryPanelProps = {
 };
 
 const REFRESH_MS = 12_000;
+const REQUEST_TIMEOUT_MS = 6_500;
+
+const FALLBACK_INTELLIGENCE: TelemetryIntelligence = {
+  session_name: 'Practice 1',
+  session_type: 'Practice',
+  status: 'no_live',
+  generated_at: new Date(0).toISOString(),
+  weather: null,
+  drivers: [],
+  race_control: [],
+  eliminations: {
+    drivers: [],
+    teams: [],
+    note: 'No driver or team elimination is indicated before OpenF1 publishes live session data.',
+  },
+  battery: {
+    available: false,
+    note: 'OpenF1 does not expose ERS or battery state in the public feed used by this dashboard.',
+  },
+  track_status: 'No active race-control flag in feed',
+  data_notes: [
+    'Using scheduled Miami fallback while the live telemetry feed warms up.',
+    'Tyre, stint, weather, and race-control rows will populate when OpenF1 publishes session data.',
+  ],
+};
 
 function formatValue(value: number | null | undefined, suffix = '') {
   if (value === null || value === undefined || !Number.isFinite(value)) return '--';
@@ -103,6 +128,18 @@ function compoundTone(compound: string | null) {
   return 'var(--text-muted)';
 }
 
+async function fetchTelemetryPacket() {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch('/api/telemetry', { cache: 'no-store', signal: controller.signal });
+    if (!response.ok) throw new Error(`Telemetry API returned ${response.status}`);
+    return (await response.json()) as TelemetryApiResponse;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 function MetricTile({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <div style={{ border: '1px solid var(--border-light)', borderRadius: 8, padding: '0.65rem', background: 'rgba(255,255,255,0.04)', minWidth: 0 }}>
@@ -125,16 +162,19 @@ export default function LiveRaceTelemetryPanel({ nextSession, compact = false }:
 
     async function loadTelemetry() {
       try {
-        const response = await fetch('/api/telemetry', { cache: 'no-store' });
-        if (!response.ok) throw new Error(`Telemetry API returned ${response.status}`);
-        const json = (await response.json()) as TelemetryApiResponse;
+        const json = await fetchTelemetryPacket();
         if (!cancelled) {
           setPayload(json);
           setError(null);
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Telemetry API unavailable');
+          setPayload((current) => current ?? {
+            status: 'no_live',
+            telemetry_intelligence: FALLBACK_INTELLIGENCE,
+            warnings: ['Telemetry request timed out; showing scheduled fallback.'],
+          });
+          setError(err instanceof Error && err.name !== 'AbortError' ? err.message : null);
         }
       } finally {
         if (!cancelled) setLoading(false);

@@ -13,6 +13,7 @@ type NextRaceIntelligenceProps = {
 
 const FALLBACK_NEXT_RACE = 'Miami Grand Prix';
 const GENERIC_SESSION_NAMES = new Set(['', 'Race', 'NO LIVE SESSION', 'TELEMETRY OFFLINE']);
+const INTELLIGENCE_TIMEOUT_MS = 6_500;
 
 function formatSchedule(value?: string) {
   if (!value) return 'Schedule pending';
@@ -47,6 +48,17 @@ function getSessionYear(nextSession: DashboardSession | null) {
   return new Date().getUTCFullYear();
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => reject(new Error(`${label} timed out`)), timeoutMs);
+
+    promise
+      .then(resolve)
+      .catch(reject)
+      .finally(() => window.clearTimeout(timeoutId));
+  });
+}
+
 function StatLabel({ icon, label }: { icon: ReactNode; label: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: 'var(--text-muted)', fontSize: '0.72rem', textTransform: 'uppercase' }}>
@@ -74,14 +86,18 @@ export default function NextRaceIntelligence({ nextSession, compact = false }: N
       try {
         setLoading(true);
         setError(null);
-        const [summaryData, forecastData] = await Promise.all([
-          fetchLatestCompletedRaceSummary(),
-          fetchPredictionForecast({ grandPrix: nextRaceName, year: nextRaceYear }),
+        const [summaryResult, forecastResult] = await Promise.allSettled([
+          withTimeout(fetchLatestCompletedRaceSummary(), INTELLIGENCE_TIMEOUT_MS, 'Previous-race summary'),
+          withTimeout(fetchPredictionForecast({ grandPrix: nextRaceName, year: nextRaceYear }), INTELLIGENCE_TIMEOUT_MS, 'Prediction forecast'),
         ]);
 
         if (!cancelled) {
+          const summaryData = summaryResult.status === 'fulfilled' ? summaryResult.value : null;
+          const forecastData = forecastResult.status === 'fulfilled' ? forecastResult.value : null;
+
           setRaceSummary(summaryData);
           setForecast(forecastData);
+          setError(summaryData || forecastData ? null : 'Race intelligence is temporarily unavailable; the live dashboard is still ready.');
         }
       } catch (err) {
         if (!cancelled) {
