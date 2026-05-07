@@ -71,7 +71,9 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '') ?? 
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 const useSupabase = Boolean(supabaseUrl && supabaseAnonKey);
 const baseUrl = useSupabase ? `${supabaseUrl}/functions/v1/predictions` : '/api/predictions';
-const forecastBaseUrl = useSupabase ? `${supabaseUrl}/functions/v1/prediction-forecast` : '/api/predictions/forecast';
+// Always use the Next.js API route for forecasts — the Supabase Edge Function
+// for prediction-forecast is not deployed; prediction logic runs server-side.
+const forecastBaseUrl = '/api/predictions/forecast';
 
 async function fetchJson<T>(url: string): Promise<T> {
   const headers: HeadersInit = {};

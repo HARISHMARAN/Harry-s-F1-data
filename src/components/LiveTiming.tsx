@@ -115,8 +115,8 @@ export default function LiveTiming({
   }
 
   return (
-    <div className="glass-panel" style={{ height: '100%' }}>
-      <div className="panel-header" style={{ justifyContent: 'space-between' }}>
+    <div className="glass-panel" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className="panel-header" style={{ justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <Trophy size={16} color="var(--accent-f1)" />
           <h2 className="panel-title">{title}</h2>
@@ -126,7 +126,7 @@ export default function LiveTiming({
         </div>
       </div>
 
-      <div className="timing-table-wrapper">
+      <div className="timing-table-wrapper" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         <table className="timing-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ color: 'var(--text-muted)', fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -180,21 +180,25 @@ export default function LiveTiming({
 
                   {/* Tyre */}
                   <td style={{ textAlign: 'center', paddingTop: '0.55rem', paddingBottom: '0.55rem' }}>
-                    <span style={{
-                      display: 'inline-block',
-                      width: '20px',
-                      height: '20px',
-                      lineHeight: '20px',
-                      borderRadius: '50%',
-                      background: `${compoundColour(row.tyre)}22`,
-                      border: `1.5px solid ${compoundColour(row.tyre)}`,
-                      color: compoundColour(row.tyre),
-                      fontSize: '0.6rem',
-                      fontWeight: 900,
-                      textAlign: 'center',
-                    }}>
-                      {compoundLabel(row.tyre)}
-                    </span>
+                    {row.tyre ? (
+                      <span style={{
+                        display: 'inline-block',
+                        width: '20px',
+                        height: '20px',
+                        lineHeight: '20px',
+                        borderRadius: '50%',
+                        background: `${compoundColour(row.tyre)}22`,
+                        border: `1.5px solid ${compoundColour(row.tyre)}`,
+                        color: compoundColour(row.tyre),
+                        fontSize: '0.6rem',
+                        fontWeight: 900,
+                        textAlign: 'center',
+                      }}>
+                        {compoundLabel(row.tyre)}
+                      </span>
+                    ) : (
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>—</span>
+                    )}
                   </td>
 
                   {/* Last Lap */}
@@ -234,7 +238,7 @@ export default function LiveTiming({
       </div>
 
       {/* Legend */}
-      <div style={{ display: 'flex', gap: '0.75rem', padding: '0.5rem 1rem', borderTop: '1px solid var(--border-light)', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '0.75rem', padding: '0.5rem 1rem', borderTop: '1px solid var(--border-light)', flexWrap: 'wrap', flexShrink: 0 }}>
         {[
           { label: 'S', color: '#ef4444', name: 'SOFT' },
           { label: 'M', color: '#facc15', name: 'MEDIUM' },

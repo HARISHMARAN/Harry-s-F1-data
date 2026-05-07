@@ -13,7 +13,7 @@ interface DraggableWidgetProps {
   children: React.ReactNode;
 }
 
-const LAYOUT_VERSION = 'f1-hud-v4';
+const LAYOUT_VERSION = 'f1-hud-v5';
 const VIEWPORT_PADDING = 16;
 const VIEWPORT_BOTTOM_PADDING = 48;
 
@@ -59,7 +59,8 @@ export default function DraggableWidget({
 
     const minX = VIEWPORT_PADDING - parentRect.left;
     const maxX = window.innerWidth - parentRect.left - widgetWidth - VIEWPORT_PADDING;
-    const minY = VIEWPORT_PADDING - parentRect.top;
+    // Never allow widgets to go above the top of their containing element (prevents going under header)
+    const minY = Math.max(0, VIEWPORT_PADDING - parentRect.top);
     const maxY = window.innerHeight - parentRect.top - widgetHeight - VIEWPORT_BOTTOM_PADDING;
 
     return {

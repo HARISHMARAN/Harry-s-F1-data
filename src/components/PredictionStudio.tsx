@@ -134,6 +134,7 @@ export default function PredictionStudio() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [debouncedForm, setDebouncedForm] = useState(form);
+  const [nextGpName, setNextGpName] = useState(DEFAULT_GP);
 
   const sourceLabel = useMemo(() => getPredictionSourceLabel(), []);
   const weekend = forecast?.weekend ?? [];
@@ -143,9 +144,12 @@ export default function PredictionStudio() {
   useEffect(() => {
     fetch('/api/schedule/next-race', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((data: { next_race?: { session_name?: string } } | null) => {
-        const name = data?.next_race?.session_name;
+      .then((data: { next_race?: { session_name?: string; country_name?: string } } | null) => {
+        // Prefer a proper "X Grand Prix" name — fall back to country_name + " Grand Prix"
+        const name = data?.next_race?.session_name
+          ?? (data?.next_race?.country_name ? `${data.next_race.country_name} Grand Prix` : null);
         if (name) {
+          setNextGpName(name);
           setForm((current) => ({ ...current, grandPrix: name }));
         }
       })
@@ -244,7 +248,7 @@ export default function PredictionStudio() {
         </label>
 
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <button type="button" style={buttonStyle} onClick={() => setForm((current) => ({ ...current, grandPrix: DEFAULT_GP }))}>
+          <button type="button" style={buttonStyle} onClick={() => setForm((current) => ({ ...current, grandPrix: nextGpName }))}>
             <CalendarRange size={16} style={{ display: 'inline', marginRight: '0.45rem' }} />
             Next GP
           </button>
@@ -269,8 +273,12 @@ export default function PredictionStudio() {
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: '1rem', alignItems: 'start' }}>
               <div>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.65rem' }}>
-                  <Chip color="var(--accent-cyan)">{forecast.weekendStatus?.circuit ?? 'Miami'}</Chip>
-                  <Chip>{forecast.weekendStatus?.location ?? 'Miami Gardens'}</Chip>
+                  {forecast.weekendStatus?.circuit && (
+                    <Chip color="var(--accent-cyan)">{forecast.weekendStatus.circuit}</Chip>
+                  )}
+                  {forecast.weekendStatus?.location && (
+                    <Chip>{forecast.weekendStatus.location}</Chip>
+                  )}
                   <Chip>{forecast.matchedBy}</Chip>
                 </div>
                 <h3 style={{ margin: 0, fontSize: '1.8rem' }}>{forecast.raceName}</h3>

@@ -36,8 +36,8 @@ const FALLBACK_BACKDROP_SESSION: DashboardSession = {
   current_lap: 'SCHEDULED',
 };
 
-const HUD_VISIBILITY_STORAGE_KEY = 'hud_widget_visibility_f1-hud-v4';
-const HUD_LAYOUT_STORAGE_PREFIX = 'hud_widget_f1-hud-v4_';
+const HUD_VISIBILITY_STORAGE_KEY = 'hud_widget_visibility_f1-hud-v5';
+const HUD_LAYOUT_STORAGE_PREFIX = 'hud_widget_f1-hud-v5_';
 
 const HUD_WIDGET_OPTIONS = [
   { id: 'leaderboard', label: 'Live timing' },
