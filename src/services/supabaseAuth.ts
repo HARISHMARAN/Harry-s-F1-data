@@ -16,7 +16,7 @@ export function isSupabaseAuthConfigured() {
 }
 
 export function shouldBypassAuthGate() {
-  return !isSupabaseAuthConfigured() && process.env.NODE_ENV !== 'production';
+  return !isSupabaseAuthConfigured();
 }
 
 export function getSupabaseBrowserClient() {

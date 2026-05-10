@@ -1,31 +1,55 @@
-# Node.js
+# Dependencies
 node_modules/
+.pnp/
+.pnp.js
+
+# Next.js / Vite / build output
+.next/
+out/
 dist/
 build/
-.next/
-.next.quarantine-*/
-node_modules.quarantine-*/
-
-# Python
-venv/
-__pycache__/
-.env
-.env.local
-
-# IDE directories
-.vscode/
-.idea/
-*.sublime-workspace
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Coverage directories
-coverage/  
-test-results*/
-addons/f1-race-replay/cache/
-tsconfig.tsbuildinfo
+.vite/
+.turbo/
+coverage/
+playwright-report/
+test-results/
 
 # Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Local caches and generated data
+.cache/
+.parcel-cache/
+*.tsbuildinfo
+*.ff1pkl
+.fastf1-cache/
+storage/
+
+# Supabase local state
+supabase/.temp/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Quarantine / local recovery folders
+*.quarantine-*/
+.recovery-logs/
