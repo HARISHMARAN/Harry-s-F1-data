@@ -1,6 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "../../../lib/rateLimit";
 import { cacheGet, cacheDel, cacheSet } from "../../../lib/cache";
+
+// When FASTF1_LIVE=1, proxy to the local FastF1 Python server instead of OpenF1.
+// Start the server with: python3 server/f1live.py
+const FASTF1_LIVE_URL = process.env.FASTF1_LIVE === "1"
+  ? (process.env.FASTF1_LIVE_URL ?? "http://localhost:8001/live")
+  : null;
 import { buildTelemetryResponse } from "../../../lib/analytics";
 import {
   getCarData,
@@ -522,6 +528,24 @@ async function refreshTelemetry(): Promise<TelemetryPayload> {
 export async function GET(request: NextRequest) {
   const limited = rateLimit(request, { limit: 60, windowMs: 60_000 });
   if (limited) return limited;
+
+  // FastF1 live mode: proxy directly to local Python server
+  if (FASTF1_LIVE_URL) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4_000);
+      const res = await fetch(FASTF1_LIVE_URL, { cache: "no-store", signal: controller.signal });
+      clearTimeout(timeout);
+      if (res.ok) {
+        const data = await res.json();
+        return NextResponse.json(data, {
+          headers: { "x-telemetry-source": "fastf1-live" },
+        });
+      }
+    } catch {
+      // FastF1 server unreachable — fall through to OpenF1
+    }
+  }
 
   const [cachedPayload, lastFetchMs] = await Promise.all([
     cacheGet<TelemetryPayload>(CACHE_KEY_PAYLOAD),
