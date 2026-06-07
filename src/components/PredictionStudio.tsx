@@ -12,7 +12,6 @@ type PredictionFormState = {
 
 type WeekendPrediction = NonNullable<PredictionForecastResponse['weekend']>[number];
 
-const DEFAULT_GP = '';
 
 const buttonStyle: CSSProperties = {
   borderRadius: 999,

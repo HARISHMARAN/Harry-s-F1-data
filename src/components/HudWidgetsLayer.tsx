@@ -25,11 +25,9 @@ interface HudWidgetsLayerProps {
   layoutResetKey: number;
   isNarrowViewport: boolean;
   rightRailX: number;
-  trackedDriver: string;
   lastFetchDurationMs: number | null;
   onToggleWidget: (id: HudWidgetId, checked: boolean) => void;
   onResetLayout: () => void;
-  onDriverChange: (acronym: string) => void;
 }
 
 export default function HudWidgetsLayer({
@@ -46,19 +44,10 @@ export default function HudWidgetsLayer({
   layoutResetKey,
   isNarrowViewport,
   rightRailX,
-  trackedDriver,
   lastFetchDurationMs,
   onToggleWidget,
   onResetLayout,
-  onDriverChange,
 }: HudWidgetsLayerProps) {
-  const availableDrivers = leaderboard.map((d) => ({
-    acronym: d.name_acronym,
-    fullName: d.full_name,
-    teamColour: d.team_colour,
-  }));
-
-  const tracked = leaderboard.find((d) => d.name_acronym === trackedDriver) ?? leaderboard[0];
 
   const latencyLabel = lastFetchDurationMs !== null
     ? `${lastFetchDurationMs}MS`
