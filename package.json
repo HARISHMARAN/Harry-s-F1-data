@@ -15,10 +15,12 @@
     "test:visual": "playwright test -c playwright.config.ts",
     "test:visual:update": "playwright test -c playwright.config.ts --update-snapshots",
     "quality": "npm run typecheck && npm run lint && npm run test:unit && npm run build",
-    "hooks:install": "git config core.hooksPath .githooks"
+    "hooks:install": "git config core.hooksPath .githooks",
+    "addons:predictions": "python3 addons/2026_f1_predictions/export_json.py --out addons/predictions-cache/predictions.json"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.1",
+    "@vercel/kv": "^3.0.0",
     "cors": "^2.8.5",
     "express": "^5.2.1",
     "lucide-react": "^1.8.0",

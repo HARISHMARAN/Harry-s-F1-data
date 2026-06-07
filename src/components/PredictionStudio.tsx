@@ -12,7 +12,7 @@ type PredictionFormState = {
 
 type WeekendPrediction = NonNullable<PredictionForecastResponse['weekend']>[number];
 
-const DEFAULT_GP = 'Canadian Grand Prix';
+const DEFAULT_GP = '';
 
 const buttonStyle: CSSProperties = {
   borderRadius: 999,
@@ -126,34 +126,59 @@ function SessionCard({ prediction }: { prediction: WeekendPrediction }) {
 }
 
 export default function PredictionStudio() {
-  const [form, setForm] = useState<PredictionFormState>({
-    grandPrix: DEFAULT_GP,
-    year: String(new Date().getUTCFullYear()),
-  });
+  const currentYear = String(new Date().getUTCFullYear());
+  const [form, setForm] = useState<PredictionFormState>({ grandPrix: '', year: currentYear });
   const [forecast, setForecast] = useState<PredictionForecastResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [scheduleLoading, setScheduleLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [debouncedForm, setDebouncedForm] = useState(form);
-  const [nextGpName, setNextGpName] = useState(DEFAULT_GP);
+  const [nextGpName, setNextGpName] = useState('');
 
   const sourceLabel = useMemo(() => getPredictionSourceLabel(), []);
   const weekend = forecast?.weekend ?? [];
   const racePrediction = weekend.find((entry) => entry.id === 'race');
 
-  // Auto-detect the next race from the API on mount
+  // Auto-detect: fetch /api/schedule/next-race which uses getNextRaceSession()
+  // That function returns strictly-future races (date_start > now), so once a
+  // race starts it automatically advances to the following Grand Prix.
+  // Re-poll every 5 minutes so it advances during a race day without a page reload.
   useEffect(() => {
-    fetch('/api/schedule/next-race', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { next_race?: { session_name?: string; country_name?: string } } | null) => {
-        // Prefer a proper "X Grand Prix" name — fall back to country_name + " Grand Prix"
-        const name = data?.next_race?.session_name
-          ?? (data?.next_race?.country_name ? `${data.next_race.country_name} Grand Prix` : null);
-        if (name) {
-          setNextGpName(name);
-          setForm((current) => ({ ...current, grandPrix: name }));
-        }
-      })
-      .catch(() => {});
+    let ignore = false;
+
+    const detect = () => {
+      setScheduleLoading(true);
+      fetch('/api/schedule/next-race', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { next_race?: { session_name?: string; country_name?: string; date_start?: string } } | null) => {
+          if (ignore) return;
+          const raw = data?.next_race?.session_name ?? '';
+          // Build "X Grand Prix" name from circuit_short_name or country_name
+          const country = data?.next_race?.country_name ?? '';
+          const name = raw.includes('Grand Prix') ? raw
+            : country ? `${country} Grand Prix`
+            : raw;
+          if (name) {
+            setNextGpName(name);
+            setForm((current) => {
+              // Only auto-update if user hasn't manually changed the field
+              if (current.grandPrix === '' || current.grandPrix === nextGpName) {
+                return { ...current, grandPrix: name };
+              }
+              return current;
+            });
+          }
+        })
+        .catch(() => {})
+        .finally(() => { if (!ignore) setScheduleLoading(false); });
+    };
+
+    detect();
+    // Re-poll every 5 minutes — covers race-start advancement without a reload
+    const id = window.setInterval(detect, 5 * 60 * 1000);
+    return () => { ignore = true; window.clearInterval(id); };
+  // nextGpName intentionally excluded — we only want this on mount + interval
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -162,14 +187,18 @@ export default function PredictionStudio() {
   }, [form]);
 
   useEffect(() => {
+    // Don't fire the forecast request until we know which race to show
+    if (scheduleLoading && !debouncedForm.grandPrix) return;
+
     let cancelled = false;
 
     async function loadForecast() {
       try {
         setLoading(true);
         setError(null);
+        // Empty grandPrix → prediction engine picks next race via getNextRaceSession()
         const data = await fetchPredictionForecast({
-          grandPrix: debouncedForm.grandPrix || DEFAULT_GP,
+          grandPrix: debouncedForm.grandPrix || undefined,
           year: debouncedForm.year ? Number(debouncedForm.year) : undefined,
         });
         if (!cancelled) setForecast(data);
@@ -190,7 +219,7 @@ export default function PredictionStudio() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [debouncedForm]);
+  }, [debouncedForm, scheduleLoading]);
 
   return (
     <div className="glass-panel" style={{ padding: '1.5rem', display: 'grid', gap: '1.25rem' }}>
@@ -218,7 +247,7 @@ export default function PredictionStudio() {
           <input
             value={form.grandPrix}
             onChange={(e) => setForm((current) => ({ ...current, grandPrix: e.target.value }))}
-            placeholder="e.g. Canadian Grand Prix"
+            placeholder={scheduleLoading ? 'Detecting next race…' : nextGpName || 'e.g. Monaco Grand Prix'}
             style={{
               padding: '0.9rem 1rem',
               borderRadius: 8,
@@ -248,9 +277,15 @@ export default function PredictionStudio() {
         </label>
 
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <button type="button" style={buttonStyle} onClick={() => setForm((current) => ({ ...current, grandPrix: nextGpName }))}>
+          <button
+            type="button"
+            style={buttonStyle}
+            disabled={!nextGpName}
+            onClick={() => setForm((current) => ({ ...current, grandPrix: nextGpName }))}
+            title={nextGpName ? `Jump to ${nextGpName}` : 'Detecting next race…'}
+          >
             <CalendarRange size={16} style={{ display: 'inline', marginRight: '0.45rem' }} />
-            Next GP
+            {nextGpName ? 'Next GP' : '…'}
           </button>
           <button type="button" style={buttonStyle} onClick={() => setDebouncedForm({ ...form })}>
             <RefreshCw size={16} style={{ display: 'inline', marginRight: '0.45rem' }} />
@@ -259,7 +294,12 @@ export default function PredictionStudio() {
         </div>
       </div>
 
-      {loading ? <div style={{ padding: '0.75rem 0', color: 'var(--text-secondary)' }}>Building live weekend forecast...</div> : null}
+      {(loading || (scheduleLoading && !forecast)) ? (
+        <div style={{ padding: '0.75rem 0', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <RefreshCw size={14} className="spin-icon" />
+          {scheduleLoading && !nextGpName ? 'Detecting next Grand Prix…' : 'Building live weekend forecast…'}
+        </div>
+      ) : null}
 
       {error ? (
         <div style={{ padding: '0.9rem 1rem', borderRadius: 8, border: '1px solid rgba(234, 51, 35, 0.35)', background: 'rgba(234, 51, 35, 0.08)' }}>

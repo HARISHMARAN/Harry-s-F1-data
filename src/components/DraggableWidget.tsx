@@ -42,6 +42,7 @@ export default function DraggableWidget({
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [minimized, setMinimized] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
   const resizeRef = useRef<{ startX: number; startY: number; initialWidth: number; initialHeight: number } | null>(null);
   const widgetRef = useRef<HTMLDivElement | null>(null);
@@ -217,6 +218,31 @@ export default function DraggableWidget({
     };
   }, [isResizing, minHeight, minWidth, storageKey]);
 
+  // Minimized: render as a draggable dot in the bottom-left corner
+  if (minimized) {
+    return (
+      <div
+        ref={widgetRef}
+        onMouseDown={handleMouseDown}
+        onClick={() => setMinimized(false)}
+        title={`Expand ${title}`}
+        style={{
+          position: 'fixed',
+          left: layout.x,
+          top: layout.y,
+          width: 14,
+          height: 14,
+          borderRadius: '50%',
+          background: 'var(--accent-cyan)',
+          boxShadow: '0 0 8px var(--accent-cyan)',
+          cursor: 'pointer',
+          zIndex: 200,
+          flexShrink: 0,
+        }}
+      />
+    );
+  }
+
   return (
     <div
       ref={widgetRef}
@@ -235,21 +261,23 @@ export default function DraggableWidget({
       >
         <span style={{ fontSize: '10px', color: 'var(--text-muted)', letterSpacing: '1px', userSelect: 'none', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0, marginLeft: '6px' }}>
+          {/* Minimise to dot */}
+          <button
+            type="button"
+            aria-label={`Minimise ${title} to dot`}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => setMinimized(true)}
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 5px', fontSize: '10px', lineHeight: 1, borderRadius: '3px' }}
+          >
+            ●
+          </button>
+          {/* Collapse / expand */}
           <button
             type="button"
             aria-label={collapsed ? `Expand ${title}` : `Collapse ${title}`}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={() => setCollapsed((c) => !c)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              padding: '2px 5px',
-              fontSize: '13px',
-              lineHeight: 1,
-              borderRadius: '3px',
-            }}
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 5px', fontSize: '13px', lineHeight: 1, borderRadius: '3px' }}
           >
             {collapsed ? '+' : '−'}
           </button>
@@ -259,16 +287,7 @@ export default function DraggableWidget({
               aria-label={`Close ${title}`}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={onClose}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--text-muted)',
-                cursor: 'pointer',
-                padding: '2px 5px',
-                fontSize: '13px',
-                lineHeight: 1,
-                borderRadius: '3px',
-              }}
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 5px', fontSize: '13px', lineHeight: 1, borderRadius: '3px' }}
             >
               ×
             </button>

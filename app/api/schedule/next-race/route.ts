@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getCurrentOrNextRaceSession } from '../../../../lib/openf1';
+import { getNextRaceSession } from '../../../../lib/openf1';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const session = await getCurrentOrNextRaceSession();
+  // Use getNextRaceSession (strictly date_start > now) so once a race starts
+  // this endpoint advances to the next Grand Prix automatically.
+  const session = await getNextRaceSession();
 
   return NextResponse.json({
     next_race: session

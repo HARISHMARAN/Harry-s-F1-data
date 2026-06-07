@@ -1,11 +1,11 @@
-import { Sparkles, Activity, Clock } from 'lucide-react';
+"use client";
 
 interface HeaderProps {
   sessionName?: string;
   isLive?: boolean;
 }
 
-export default function Header({ sessionName = "Latest Session", isLive = false }: HeaderProps) {
+export default function Header({ sessionName = "PITWALL", isLive = false }: HeaderProps) {
   return (
     <div className="header">
       <div className="header-title-wrapper">
@@ -13,32 +13,34 @@ export default function Header({ sessionName = "Latest Session", isLive = false 
           <span>F1</span>
         </div>
         <div className="header-copy">
-          <span className="header-eyebrow">Pit Wall Command Center</span>
-          <h1 className="header-main-title">{sessionName} Dashboard</h1>
-          <p className="header-subtitle">Race telemetry, strategy signals, and live command flow</p>
+          <span className="header-eyebrow">Harry's Pit Wall</span>
+          <h1 className="header-main-title">{sessionName}</h1>
+          <p className="header-subtitle">Race Telemetry Command Centre</p>
         </div>
       </div>
+
       <div className="header-right">
-        {isLive && (
+        {isLive ? (
           <div className="live-indicator">
             <div className="pulsing-dot" />
-            LIVE
+            <span className="live-text">LIVE</span>
+          </div>
+        ) : (
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            padding: '0.3rem 0.75rem',
+            borderRadius: 999,
+            border: '1px solid rgba(78, 98, 120, 0.4)',
+            background: 'rgba(78, 98, 120, 0.08)',
+          }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-muted)' }} />
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", color: 'var(--text-muted)', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.14em' }}>
+              TRACK CLEAR
+            </span>
           </div>
         )}
-        <div className="header-metrics">
-          <span className="metric-pill">
-            <Activity size={15} className="metric-icon" />
-            Race Ops
-          </span>
-          <span className="metric-pill">
-            <Clock size={15} className="metric-icon" />
-            Real-time
-          </span>
-          <span className="metric-pill">
-            <Sparkles size={15} className="metric-icon" />
-            Strategy Layer
-          </span>
-        </div>
       </div>
     </div>
   );

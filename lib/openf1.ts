@@ -289,6 +289,72 @@ export async function getCurrentOrNextRaceSession(now = new Date()): Promise<Ope
   }) ?? null;
 }
 
+/**
+ * Returns the next upcoming session of ANY type (Practice, Qualifying, Sprint, Race)
+ * across this year and next. Used for schedule display and backdrop context.
+ */
+export async function getNextAnySession(now = new Date()): Promise<OpenF1Session | null> {
+  const year = now.getUTCFullYear();
+  const fetchYear = async (targetYear: number) => {
+    try {
+      return await fetchOpenF1<OpenF1Session[]>("/sessions", { year: targetYear });
+    } catch {
+      return [] as OpenF1Session[];
+    }
+  };
+
+  const sessionsThisYear = await fetchYear(year);
+  const nextInYear = sessionsThisYear
+    .filter((s) => s.date_start && Date.parse(s.date_start) > now.getTime())
+    .sort((a, b) => Date.parse(a.date_start) - Date.parse(b.date_start))[0];
+
+  if (nextInYear) return nextInYear;
+
+  const sessionsNextYear = await fetchYear(year + 1);
+  return sessionsNextYear
+    .filter((s) => s.date_start)
+    .sort((a, b) => Date.parse(a.date_start) - Date.parse(b.date_start))[0] ?? null;
+}
+
+/**
+ * Returns all sessions for the current or next race weekend (same meeting_key).
+ * Sorted chronologically. Used to show the full weekend timetable.
+ */
+export async function getWeekendSchedule(now = new Date()): Promise<OpenF1Session[]> {
+  const year = now.getUTCFullYear();
+
+  let allSessions: OpenF1Session[] = [];
+  try {
+    allSessions = await fetchOpenF1<OpenF1Session[]>("/sessions", { year });
+  } catch {
+    return [];
+  }
+
+  if (!allSessions.length) return [];
+
+  const sorted = allSessions
+    .filter((s) => s.date_start)
+    .sort((a, b) => Date.parse(a.date_start) - Date.parse(b.date_start));
+
+  const nowTs = now.getTime();
+  const weekendWindowMs = 7 * 24 * 60 * 60 * 1000;
+
+  // Find the meeting_key of the current or next event
+  // "Current" = any session whose window overlaps now (within 1h after end)
+  // "Next" = first future session if no live event
+  const liveSession = sorted.find((s) => {
+    const start = Date.parse(s.date_start);
+    const end = s.date_end ? Date.parse(s.date_end) : start + 3 * 60 * 60 * 1000;
+    return start <= nowTs && nowTs <= end + 60 * 60 * 1000;
+  });
+
+  const anchorSession = liveSession ?? sorted.find((s) => Date.parse(s.date_start) > nowTs - weekendWindowMs);
+  if (!anchorSession?.meeting_key) return [];
+
+  const meetingKey = anchorSession.meeting_key;
+  return sorted.filter((s) => s.meeting_key === meetingKey);
+}
+
 export async function getNextSession(now = new Date()): Promise<OpenF1Session | null> {
   const year = now.getUTCFullYear();
 

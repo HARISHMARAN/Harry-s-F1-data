@@ -20,6 +20,11 @@ export const telemetryDriverSchema = z.object({
 
 export const telemetryResponseSchema = z.object({
   session: z.string().default('no-live-session'),
+  session_name: z.string().optional(),
+  session_type: z.string().optional(),
+  country_name: z.string().optional(),
+  location: z.string().optional(),
+  circuit_short_name: z.string().optional(),
   timestamp: z.number().default(() => Math.floor(Date.now() / 1000)),
   status: z.enum(['live', 'no_live']).optional(),
   drivers: z.array(telemetryDriverSchema).default([]),
@@ -36,6 +41,15 @@ export const telemetryResponseSchema = z.object({
     })
     .nullable()
     .optional(),
+  weekend_schedule: z.array(
+    z.object({
+      session_key: z.number(),
+      session_name: z.string(),
+      session_type: z.string(),
+      date_start: z.string(),
+      date_end: z.string().nullable().optional(),
+    })
+  ).optional(),
   warnings: z.array(z.string()).optional(),
 });
 

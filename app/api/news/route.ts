@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '../../../lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -140,7 +141,10 @@ function dedupe(items: NewsItem[]) {
   });
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const limited = rateLimit(request, { limit: 30, windowMs: 60_000 });
+  if (limited) return limited;
+
   const feedResults = await Promise.all(FEEDS.map((feed) => fetchFeed(feed).catch(() => [])));
   const dynamicItems = feedResults.flat();
   const latestFeedItems = dedupe(dynamicItems)

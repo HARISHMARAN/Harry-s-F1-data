@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchLiveDashboardData } from "../../src/services/openf1";
+import { getLiveDashboardData } from "../../src/data-access/telemetryClient";
 
 type TelemetryDriver = {
   code: string;
@@ -29,7 +29,7 @@ export default function PitwallPage() {
 
     async function load() {
       try {
-        const dashboard = await fetchLiveDashboardData();
+        const dashboard = await getLiveDashboardData();
         const json: TelemetryResponse = {
           session: dashboard.session.session_name,
           timestamp: Math.floor(Date.now() / 1000),

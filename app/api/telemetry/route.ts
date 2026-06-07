@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "../../../lib/rateLimit";
+import { cacheGet, cacheSet } from "../../../lib/cache";
 import { buildTelemetryResponse } from "../../../lib/analytics";
 import {
   getCarData,
@@ -12,22 +14,33 @@ import {
   getRaceControl,
   getStints,
   getWeather,
+  getWeekendSchedule,
   type OpenF1CarData,
   type OpenF1Driver,
   type OpenF1Interval,
   type OpenF1Lap,
   type OpenF1RaceControl,
+  type OpenF1Session,
   type OpenF1Stint,
   type OpenF1Weather,
 } from "../../../lib/openf1";
 
 export const runtime = "nodejs";
 
+type WeekendSessionSlot = {
+  session_key: number;
+  session_name: string;
+  session_type: string;
+  date_start: string;
+  date_end: string | null;
+};
+
 type TelemetryPayload =
   | (ReturnType<typeof buildTelemetryResponse> & {
       status: "live";
       next_session?: null;
       telemetry_intelligence?: TelemetryIntelligence;
+      weekend_schedule?: WeekendSessionSlot[];
       warnings?: string[];
     })
   | {
@@ -45,15 +58,19 @@ type TelemetryPayload =
         date_start: string | null;
         date_end: string | null;
       } | null;
+      weekend_schedule?: WeekendSessionSlot[];
       warnings?: string[];
       telemetry_intelligence?: TelemetryIntelligence;
     };
 
-const FRESH_TTL_MS = 5_000;
-const STALE_TTL_MS = 60_000;
+const FRESH_TTL_S = 5;
+const STALE_TTL_S = 60;
 const MAX_CAR_DATA_DRIVERS = 6;
 const TELEMETRY_RESPONSE_TIMEOUT_MS = 9_000;
 const FALLBACK_NEXT_SESSION_TIMEOUT_MS = 4_000;
+
+const CACHE_KEY_PAYLOAD = "telemetry:payload";
+const CACHE_KEY_FETCHED_AT = "telemetry:fetchedAt";
 
 type DriverTelemetryInsight = {
   driver_number: number;
@@ -105,9 +122,8 @@ type TelemetryIntelligence = {
   data_notes: string[];
 };
 
-let cachedPayload: TelemetryPayload | null = null;
-let lastFetchMs = 0;
-let staleUntilMs = 0;
+// Module-level in-flight guard: deduplicates concurrent rebuild requests
+// within a single process instance. KV handles cross-instance coordination.
 let inFlight: Promise<TelemetryPayload> | null = null;
 
 async function fetchWithRetry<T>(fn: () => Promise<T>, maxAttempts = 3) {
@@ -302,9 +318,26 @@ function buildTelemetryIntelligence(input: {
   };
 }
 
+function mapSessionSlot(s: OpenF1Session): WeekendSessionSlot {
+  return {
+    session_key: s.session_key,
+    session_name: s.session_name,
+    session_type: s.session_type ?? "Race",
+    date_start: s.date_start,
+    date_end: s.date_end ?? null,
+  };
+}
+
 async function buildTelemetryPayload(): Promise<TelemetryPayload> {
   const warnings: string[] = [];
-  const session = await fetchWithRetry(() => getCurrentSession());
+
+  const [session, weekendSessions] = await Promise.all([
+    fetchWithRetry(() => getCurrentSession()),
+    getWeekendSchedule().catch(() => [] as OpenF1Session[]),
+  ]);
+
+  const weekend_schedule = weekendSessions.map(mapSessionSlot);
+
   if (!session) {
     const nextSession = await fetchWithRetry(() => getNextSession());
     return {
@@ -324,6 +357,7 @@ async function buildTelemetryPayload(): Promise<TelemetryPayload> {
             date_end: nextSession.date_end ?? null,
           }
         : null,
+      weekend_schedule,
       warnings,
       telemetry_intelligence: buildTelemetryIntelligence({
         sessionName: nextSession?.session_name ?? "No live session",
@@ -405,18 +439,19 @@ async function buildTelemetryPayload(): Promise<TelemetryPayload> {
       raceControl,
       carData,
     }),
+    weekend_schedule,
     warnings,
   };
 }
 
-async function refreshTelemetry() {
+async function refreshTelemetry(): Promise<TelemetryPayload> {
   if (!inFlight) {
     inFlight = (async () => {
       const payload = await buildTelemetryPayload();
-      const now = Date.now();
-      cachedPayload = payload;
-      lastFetchMs = now;
-      staleUntilMs = now + STALE_TTL_MS;
+      await Promise.all([
+        cacheSet(CACHE_KEY_PAYLOAD, payload, STALE_TTL_S),
+        cacheSet(CACHE_KEY_FETCHED_AT, Date.now(), STALE_TTL_S),
+      ]);
       return payload;
     })();
   }
@@ -428,18 +463,26 @@ async function refreshTelemetry() {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const limited = rateLimit(request, { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
+  const [cachedPayload, lastFetchMs] = await Promise.all([
+    cacheGet<TelemetryPayload>(CACHE_KEY_PAYLOAD),
+    cacheGet<number>(CACHE_KEY_FETCHED_AT),
+  ]);
+
   try {
     const now = Date.now();
 
-    if (cachedPayload && now - lastFetchMs < FRESH_TTL_MS) {
+    if (cachedPayload && lastFetchMs && now - lastFetchMs < FRESH_TTL_S * 1000) {
       return NextResponse.json(cachedPayload, {
         status: 200,
         headers: { "x-telemetry-cache": "hit" },
       });
     }
 
-    if (cachedPayload && now < staleUntilMs) {
+    if (cachedPayload) {
       void refreshTelemetry().catch(() => null);
       return NextResponse.json(cachedPayload, {
         status: 200,

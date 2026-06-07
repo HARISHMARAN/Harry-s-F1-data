@@ -6,13 +6,17 @@ export interface DriverPosition {
   team_name: string;
   team_colour: string;
   /** Gap to race leader: "LEADER", "+1.234", "+1L" */
-  date: string;
+  gap_to_leader: string;
   /** Gap to car directly ahead: "+0.346", "+1L", or null for leader */
   interval?: string | null;
   /** Formatted last lap time: "1:22.456" or "--:--.---" */
   last_lap?: string | null;
   /** Current tyre compound: "SOFT", "MEDIUM", "HARD", "INTER", "WET" */
   tyre?: string | null;
+  /** Tyre strategy: array of stints e.g. [{ compound, laps }] */
+  tyre_stints?: { compound: string; laps: number }[];
+  /** Number of pit stops */
+  pit_stops?: number | null;
   /** Current lap number */
   lap_number?: number | null;
   sector_delta?: string;
@@ -39,12 +43,21 @@ export interface MaxStats {
   tyres: string;
 }
 
+export interface WeekendSession {
+  session_key: number;
+  session_name: string;
+  session_type: string;
+  date_start: string;
+  date_end?: string | null;
+}
+
 export interface DashboardData {
   session: DashboardSession;
   leaderboard: DriverPosition[];
   max_stats: MaxStats;
   live_status: 'LIVE' | 'NO_RACE';
   next_session?: DashboardSession | null;
+  weekend_schedule?: WeekendSession[];
   data_health?: 'healthy' | 'degraded' | 'offline';
   warnings?: string[];
 }

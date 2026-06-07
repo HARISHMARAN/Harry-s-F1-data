@@ -17,6 +17,7 @@ import NewsView from './components/NewsView';
 import ChatView from './components/chat/ChatView';
 import { AlertCircle } from 'lucide-react';
 import { useDashboardData } from './hooks/useDashboardData';
+import WeekendSchedule from './components/WeekendSchedule';
 import { DASHBOARD_TITLE } from './constants';
 import { LeaderboardSkeleton } from './components/Skeleton';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -45,6 +46,7 @@ const HUD_WIDGET_OPTIONS = [
   { id: 'next_race_intelligence', label: 'Previous winners + prediction' },
   { id: 'focused_driver', label: 'Driver focus' },
   { id: 'session_info', label: 'Session info' },
+  { id: 'weekend_schedule', label: 'Weekend schedule' },
   { id: 'data_pipeline', label: 'Pipeline' },
 ] as const;
 
@@ -57,6 +59,7 @@ const DEFAULT_HUD_VISIBILITY: HudVisibility = {
   next_race_intelligence: true,
   focused_driver: false,
   session_info: false,
+  weekend_schedule: true,
   data_pipeline: false,
 };
 
@@ -95,6 +98,7 @@ function App() {
     seasonRaces,
     liveStatus,
     nextSession,
+    weekendSchedule,
   } = state;
   const isLive = liveStatus === 'LIVE';
   const [latestCompletedSession, setLatestCompletedSession] = useState<DashboardSession | null>(null);
@@ -141,62 +145,40 @@ function App() {
   };
 
   const hudControls = viewMode === 'LIVE' || viewMode === 'HISTORICAL' ? (
-    <div
-      className="glass-panel"
-      style={{
-        position: isNarrowViewport ? 'relative' : 'fixed',
-        top: isNarrowViewport ? undefined : '18.25rem',
-        left: isNarrowViewport ? undefined : '1.5rem',
-        zIndex: 90,
-        width: isNarrowViewport ? '100%' : 300,
-        padding: '0.8rem',
-        pointerEvents: 'auto',
-        display: 'grid',
-        gap: '0.65rem',
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
-        <strong style={{ fontSize: '0.72rem', color: 'var(--accent-cyan)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>HUD Controls</strong>
-        <button
-          type="button"
-          onClick={resetHudLayout}
-          style={{
-            border: '1px solid var(--border-light)',
-            borderRadius: 999,
-            background: 'rgba(255,255,255,0.05)',
-            color: 'var(--text-secondary)',
-            padding: '0.25rem 0.55rem',
-            fontSize: '0.7rem',
-            cursor: 'pointer',
-          }}
-        >
-          Reset
-        </button>
+    isNarrowViewport ? (
+      /* Mobile: keep static stacked panel */
+      <div className="glass-panel" style={{ padding: '0.8rem', display: 'grid', gap: '0.65rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <strong style={{ fontSize: '0.72rem', color: 'var(--accent-cyan)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>HUD Controls</strong>
+          <button type="button" onClick={resetHudLayout} style={{ border: '1px solid var(--border-light)', borderRadius: 999, background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', padding: '0.25rem 0.55rem', fontSize: '0.7rem', cursor: 'pointer' }}>Reset</button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.45rem' }}>
+          {HUD_WIDGET_OPTIONS.map((option) => (
+            <label key={option.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.78rem', lineHeight: 1.25 }}>
+              <input type="checkbox" checked={visibleHudWidgets[option.id]} onChange={(e) => updateHudVisibility(option.id, e.target.checked)} style={{ accentColor: 'var(--accent-cyan)' }} />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: isNarrowViewport ? 'repeat(2, minmax(0, 1fr))' : '1fr', gap: '0.45rem' }}>
-        {HUD_WIDGET_OPTIONS.map((option) => (
-          <label
-            key={option.id}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              color: 'var(--text-secondary)',
-              fontSize: '0.78rem',
-              lineHeight: 1.25,
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={visibleHudWidgets[option.id]}
-              onChange={(event) => updateHudVisibility(option.id, event.target.checked)}
-              style={{ accentColor: 'var(--accent-cyan)' }}
-            />
-            <span>{option.label}</span>
-          </label>
-        ))}
-      </div>
-    </div>
+    ) : (
+      /* Desktop: draggable widget */
+      <DraggableWidget key={`hud_controls-${layoutResetKey}`} id="hud_controls" title="HUD CONTROLS" defaultX={24} defaultY={292} width={272} defaultHeight={240} minHeight={120}>
+        <div style={{ display: 'grid', gap: '0.65rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button type="button" onClick={resetHudLayout} style={{ border: '1px solid var(--border-light)', borderRadius: 999, background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', padding: '0.2rem 0.55rem', fontSize: '0.68rem', cursor: 'pointer' }}>Reset layout</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.45rem' }}>
+            {HUD_WIDGET_OPTIONS.map((option) => (
+              <label key={option.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.78rem', lineHeight: 1.25 }}>
+                <input type="checkbox" checked={visibleHudWidgets[option.id]} onChange={(e) => updateHudVisibility(option.id, e.target.checked)} style={{ accentColor: 'var(--accent-cyan)' }} />
+                <span>{option.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </DraggableWidget>
+    )
   ) : null;
 
   useEffect(() => {
@@ -247,7 +229,7 @@ function App() {
 
   return (
     <div className="app-container" style={{ position: 'relative', minHeight: '100vh' }}>
-      
+
       {/* BACKGROUND LAYER: TRACK MAP (FIXED) - Current/upcoming race circuit */}
       {backdropSession && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1 }}>
@@ -261,31 +243,31 @@ function App() {
           {/* Top Placeholder: Primary Mode Switch */}
           <div className="top-placeholder">
             <div className="mode-toggle">
-              <button 
+              <button
                 className={`toggle-btn ${viewMode === 'LIVE' ? 'active' : ''}`}
                 onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'LIVE' })}
               >
                 Live Telemetry
               </button>
-              <button 
+              <button
                 className={`toggle-btn ${viewMode === 'HISTORICAL' ? 'active-hist' : ''}`}
                 onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'HISTORICAL' })}
               >
                 Historical Archive
               </button>
-              <button 
+              <button
                 className={`toggle-btn ${viewMode === 'REPLAY' ? 'active-hist' : ''}`}
                 onClick={() => router.push('/replay')}
               >
                 Race Replay
               </button>
-              <button 
+              <button
                 className={`toggle-btn ${viewMode === 'CHAT' ? 'active' : ''}`}
                 onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'CHAT' })}
               >
                 Chatbot
               </button>
-              <button 
+              <button
                 className={`toggle-btn ${viewMode === 'PREDICTIONS' ? 'active-hist' : ''}`}
                 onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'PREDICTIONS' })}
               >
@@ -309,7 +291,7 @@ function App() {
           {/* Historical Race Selectors */}
           {viewMode === 'HISTORICAL' && (
             <div className="historical-controls">
-              <select 
+              <select
                 className="race-selector"
                 value={selectedYear}
                 onChange={(e) => dispatch({ type: 'SET_YEAR', payload: e.target.value })}
@@ -320,7 +302,7 @@ function App() {
               </select>
 
               {seasonRaces.length > 0 && (
-                <select 
+                <select
                   className="race-selector"
                   value={selectedRound || ""}
                   onChange={(e) => dispatch({ type: 'SET_ROUND', payload: e.target.value })}
@@ -406,6 +388,7 @@ function App() {
                         data={leaderboard}
                         title=""
                         liveStatus={viewMode === 'LIVE' ? liveStatus : 'LIVE'}
+                        raceName={viewMode === 'HISTORICAL' ? session?.session_name ?? null : null}
                         nextSession={viewMode === 'LIVE' ? nextSchedule : null}
                       />
                     )}
@@ -418,7 +401,7 @@ function App() {
                   </div>
                   )}
 
-                  {visibleHudWidgets.live_race_telemetry && (
+                  {visibleHudWidgets.live_race_telemetry && viewMode === 'LIVE' && (
                   <div className="glass-panel" style={{ padding: '0.9rem' }}>
                     <LiveRaceTelemetryPanel nextSession={nextSchedule} compact />
                   </div>
@@ -429,7 +412,7 @@ function App() {
                     {session && (
                       <MaxTracker
                         currentPos={leaderboard?.find((d) => d.name_acronym === 'VER')?.position || null}
-                        gap={leaderboard?.find((d) => d.name_acronym === 'VER')?.date || null}
+                        gap={leaderboard?.find((d) => d.name_acronym === 'VER')?.gap_to_leader || null}
                         stats={maxStats}
                       />
                     )}
@@ -439,6 +422,12 @@ function App() {
                   {visibleHudWidgets.session_info && (
                   <div className="glass-panel" style={{ padding: '0.9rem' }}>
                     {session && <SessionInfo session={session} />}
+                  </div>
+                  )}
+
+                  {visibleHudWidgets.weekend_schedule && weekendSchedule.length > 0 && (
+                  <div className="glass-panel" style={{ padding: '0.9rem' }}>
+                    <WeekendSchedule sessions={weekendSchedule} compact />
                   </div>
                   )}
 
@@ -464,13 +453,14 @@ function App() {
                         data={leaderboard}
                         title=""
                         liveStatus={viewMode === 'LIVE' ? liveStatus : 'LIVE'}
+                        raceName={viewMode === 'HISTORICAL' ? session?.session_name ?? null : null}
                         nextSession={viewMode === 'LIVE' ? nextSchedule : null}
                       />
                     )}
                   </DraggableWidget>
                   )}
 
-                  {visibleHudWidgets.live_race_telemetry && (
+                  {visibleHudWidgets.live_race_telemetry && viewMode === 'LIVE' && (
                   <DraggableWidget key={`live_race_telemetry-${layoutResetKey}`} id="live_race_telemetry" title="LIVE RACE TELEMETRY" defaultX={760} defaultY={80} width={560} defaultHeight={620} minWidth={400} minHeight={360} onClose={() => updateHudVisibility('live_race_telemetry', false)}>
                     <LiveRaceTelemetryPanel nextSession={nextSchedule} />
                   </DraggableWidget>
@@ -487,7 +477,7 @@ function App() {
                     {session && (
                       <MaxTracker
                         currentPos={leaderboard?.find((d) => d.name_acronym === 'VER')?.position || null}
-                        gap={leaderboard?.find((d) => d.name_acronym === 'VER')?.date || null}
+                        gap={leaderboard?.find((d) => d.name_acronym === 'VER')?.gap_to_leader || null}
                         stats={maxStats}
                       />
                     )}
@@ -497,6 +487,12 @@ function App() {
                   {visibleHudWidgets.session_info && (
                   <DraggableWidget key={`session_info-${layoutResetKey}`} id="session_info" title="SESSION" defaultX={rightRailX} defaultY={430} width={340} defaultHeight={260} minHeight={220} onClose={() => updateHudVisibility('session_info', false)}>
                     {session && <SessionInfo session={session} />}
+                  </DraggableWidget>
+                  )}
+
+                  {visibleHudWidgets.weekend_schedule && weekendSchedule.length > 0 && (
+                  <DraggableWidget key={`weekend_schedule-${layoutResetKey}`} id="weekend_schedule" title="RACE WEEKEND" defaultX={rightRailX} defaultY={710} width={340} defaultHeight={280} minHeight={180} onClose={() => updateHudVisibility('weekend_schedule', false)}>
+                    <WeekendSchedule sessions={weekendSchedule} />
                   </DraggableWidget>
                   )}
 

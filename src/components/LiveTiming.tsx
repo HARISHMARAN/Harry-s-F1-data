@@ -9,6 +9,7 @@ interface LiveTimingProps {
   data: DriverPosition[];
   title?: string;
   liveStatus?: 'LIVE' | 'NO_RACE';
+  raceName?: string | null;
   nextSession?: {
     session_name: string;
     location: string;
@@ -59,6 +60,7 @@ export default function LiveTiming({
   data,
   title = 'Live Timing & Intervals',
   liveStatus = 'LIVE',
+  raceName = null,
   nextSession = null,
 }: LiveTimingProps) {
   // Derived-state-during-render pattern: when data changes we synchronously
@@ -121,8 +123,10 @@ export default function LiveTiming({
           <Trophy size={16} color="var(--accent-f1)" />
           <h2 className="panel-title">{title}</h2>
         </div>
-        <div style={{ padding: '0.25rem 0.75rem', borderRadius: '4px', background: 'rgba(21, 209, 204, 0.1)', border: '1px solid rgba(21, 209, 204, 0.2)' }}>
-          <span style={{ fontSize: '0.65rem', color: 'var(--accent-cyan)', fontWeight: 'bold', letterSpacing: '1px' }}>LIVE TIMING</span>
+        <div style={{ padding: '0.25rem 0.75rem', borderRadius: '4px', background: 'rgba(21, 209, 204, 0.1)', border: '1px solid rgba(21, 209, 204, 0.2)', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: '0.65rem', color: 'var(--accent-cyan)', fontWeight: 'bold', letterSpacing: '1px' }}>
+            {raceName ?? 'LIVE TIMING'}
+          </span>
         </div>
       </div>
 
@@ -135,13 +139,16 @@ export default function LiveTiming({
               <th style={{ width: '28px', textAlign: 'center', paddingBottom: '0.4rem' }}>TYR</th>
               <th style={{ width: '80px', textAlign: 'right', paddingBottom: '0.4rem' }}>LAST LAP</th>
               <th style={{ width: '72px', textAlign: 'right', paddingBottom: '0.4rem' }}>GAP</th>
-              <th style={{ width: '72px', textAlign: 'right', paddingRight: '1rem', paddingBottom: '0.4rem' }}>INT</th>
+              <th style={{ width: '72px', textAlign: 'right', paddingBottom: '0.4rem' }}>INT</th>
+              {data.some((r) => r.pit_stops !== null && r.pit_stops !== undefined) && (
+                <th style={{ width: '40px', textAlign: 'right', paddingRight: '1rem', paddingBottom: '0.4rem' }}>PIT</th>
+              )}
             </tr>
           </thead>
           <tbody>
             {data.map((row) => {
               const change = positionChanges.get(row.name_acronym) ?? 'same';
-              const isLeader = row.date === 'LEADER';
+              const isLeader = row.gap_to_leader === 'LEADER';
               const teamColour = row.team_colour
                 ? (row.team_colour.startsWith('#') ? row.team_colour : `#${row.team_colour}`)
                 : 'var(--text-muted)';
@@ -181,19 +188,22 @@ export default function LiveTiming({
                   {/* Tyre */}
                   <td style={{ textAlign: 'center', paddingTop: '0.55rem', paddingBottom: '0.55rem' }}>
                     {row.tyre ? (
-                      <span style={{
-                        display: 'inline-block',
-                        width: '20px',
-                        height: '20px',
-                        lineHeight: '20px',
-                        borderRadius: '50%',
-                        background: `${compoundColour(row.tyre)}22`,
-                        border: `1.5px solid ${compoundColour(row.tyre)}`,
-                        color: compoundColour(row.tyre),
-                        fontSize: '0.6rem',
-                        fontWeight: 900,
-                        textAlign: 'center',
-                      }}>
+                      <span
+                        title={row.tyre_stints?.map((s) => `${s.compound[0]}:${s.laps}L`).join(' → ') ?? row.tyre}
+                        style={{
+                          display: 'inline-block',
+                          width: '20px',
+                          height: '20px',
+                          lineHeight: '20px',
+                          borderRadius: '50%',
+                          background: `${compoundColour(row.tyre)}22`,
+                          border: `1.5px solid ${compoundColour(row.tyre)}`,
+                          color: compoundColour(row.tyre),
+                          fontSize: '0.6rem',
+                          fontWeight: 900,
+                          textAlign: 'center',
+                          cursor: row.tyre_stints?.length ? 'help' : 'default',
+                        }}>
                         {compoundLabel(row.tyre)}
                       </span>
                     ) : (
@@ -216,12 +226,12 @@ export default function LiveTiming({
                       color: isLeader ? 'var(--accent-f1)' : 'var(--accent-cyan)',
                       fontFamily: 'monospace',
                     }}>
-                      {row.date}
+                      {row.gap_to_leader}
                     </span>
                   </td>
 
                   {/* Interval (gap to car ahead) */}
-                  <td style={{ textAlign: 'right', paddingRight: '1rem', paddingTop: '0.55rem', paddingBottom: '0.55rem', fontVariantNumeric: 'tabular-nums' }}>
+                  <td style={{ textAlign: 'right', paddingTop: '0.55rem', paddingBottom: '0.55rem', fontVariantNumeric: 'tabular-nums' }}>
                     <span style={{
                       fontSize: '0.75rem',
                       color: isLeader ? 'var(--text-muted)' : 'var(--text-secondary)',
@@ -230,6 +240,22 @@ export default function LiveTiming({
                       {isLeader ? '---' : (row.interval ?? '--')}
                     </span>
                   </td>
+
+                  {/* Pit stops (historical only) */}
+                  {data.some((r) => r.pit_stops !== null && r.pit_stops !== undefined) && (
+                    <td style={{ textAlign: 'right', paddingRight: '1rem', paddingTop: '0.55rem', paddingBottom: '0.55rem' }}>
+                      {row.pit_stops !== null && row.pit_stops !== undefined ? (
+                        <span
+                          title={row.tyre_stints?.map((s, i) => `Stint ${i + 1}: ${s.compound} × ${s.laps} laps`).join('\n')}
+                          style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontFamily: 'monospace', cursor: row.tyre_stints?.length ? 'help' : 'default' }}
+                        >
+                          {row.pit_stops}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>—</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               );
             })}

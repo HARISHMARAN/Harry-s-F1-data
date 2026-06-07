@@ -1,9 +1,13 @@
-import { NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { buildPredictionForecast } from '../../../../lib/predictionEngine';
+import { rateLimit } from '../../../../lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  const limited = rateLimit(request, { limit: 10, windowMs: 60_000 });
+  if (limited) return limited;
+
   const url = new URL(request.url);
   const grandPrix = url.searchParams.get('grandPrix') ?? undefined;
   const yearParam = Number(url.searchParams.get('year'));

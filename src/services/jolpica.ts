@@ -1,6 +1,115 @@
 import type { DashboardData, DriverPosition, SeasonRace } from '../types/f1';
 import { DRIVERS } from '../../lib/constants/drivers';
 
+// ─── OpenF1 tyre/stint enrichment ────────────────────────────────────────────
+
+interface OpenF1SessionLookup {
+  session_key: number;
+  meeting_key: number;
+}
+
+interface OpenF1StintRaw {
+  driver_number: number;
+  stint_number: number;
+  compound: string | null;
+  lap_start: number | null;
+  lap_end: number | null;
+}
+
+interface OpenF1DriverRaw {
+  driver_number: number;
+  name_acronym: string | null;
+}
+
+async function fetchOpenF1Json<T>(url: string): Promise<T | null> {
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return res.json() as Promise<T>;
+  } catch {
+    return null;
+  }
+}
+
+function normaliseCompound(raw: string | null | undefined): string {
+  if (!raw) return 'UNKNOWN';
+  const s = raw.toUpperCase().trim();
+  if (s.includes('INTER')) return 'INTER';
+  if (s.includes('SOFT')) return 'SOFT';
+  if (s.includes('MED')) return 'MEDIUM';
+  if (s.includes('HARD')) return 'HARD';
+  if (s.includes('WET')) return 'WET';
+  return s;
+}
+
+type TyreMap = Map<number, { compound: string; stints: { compound: string; laps: number }[]; pitStops: number }>;
+
+async function fetchTyreData(year: string, countryName: string): Promise<TyreMap> {
+  const empty: TyreMap = new Map();
+  try {
+    // Find meeting by year + country
+    const meetings = await fetchOpenF1Json<{ meeting_key: number; country_name: string; date_start: string }[]>(
+      `https://api.openf1.org/v1/meetings?year=${year}`
+    );
+    if (!meetings) return empty;
+
+    const normalise = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
+    const target = normalise(countryName);
+    const meeting = meetings.find((m) => normalise(m.country_name ?? '').includes(target) || target.includes(normalise(m.country_name ?? '')));
+    if (!meeting) return empty;
+
+    // Find race session for that meeting
+    const sessions = await fetchOpenF1Json<(OpenF1SessionLookup & { session_name: string; session_type?: string })[]>(
+      `https://api.openf1.org/v1/sessions?meeting_key=${meeting.meeting_key}&session_name=Race`
+    );
+    if (!sessions?.length) return empty;
+
+    const raceSession = sessions[0];
+
+    // Fetch stints + drivers in parallel
+    const [stints, drivers] = await Promise.all([
+      fetchOpenF1Json<OpenF1StintRaw[]>(`https://api.openf1.org/v1/stints?session_key=${raceSession.session_key}`),
+      fetchOpenF1Json<OpenF1DriverRaw[]>(`https://api.openf1.org/v1/drivers?session_key=${raceSession.session_key}`),
+    ]);
+    if (!stints || !drivers) return empty;
+
+    // Build driver_number → acronym map
+    const numToCode = new Map(drivers.map((d) => [d.driver_number, (d.name_acronym ?? '').toUpperCase()]));
+
+    // Group stints by driver_number, sorted by stint_number
+    const byDriver = new Map<number, OpenF1StintRaw[]>();
+    for (const stint of stints) {
+      const arr = byDriver.get(stint.driver_number) ?? [];
+      arr.push(stint);
+      byDriver.set(stint.driver_number, arr);
+    }
+
+    const result: TyreMap = new Map();
+    for (const [driverNum, driverStints] of byDriver) {
+      const code = numToCode.get(driverNum);
+      if (!code) continue;
+
+      const sorted = driverStints.sort((a, b) => (a.stint_number ?? 0) - (b.stint_number ?? 0));
+      // Only count stints with lap data as real stints (filter out safety-car/VSC end-of-race ghost stints)
+      const realStints = sorted.filter((s) => s.lap_start !== null && s.lap_start > 0 && (s.lap_end === null || s.lap_end >= s.lap_start));
+
+      const stintSummary = realStints.map((s) => ({
+        compound: normaliseCompound(s.compound),
+        laps: s.lap_end !== null && s.lap_start !== null ? s.lap_end - s.lap_start + 1 : 0,
+      }));
+
+      const lastCompound = normaliseCompound(realStints[realStints.length - 1]?.compound);
+      const pitStops = Math.max(0, realStints.length - 1);
+
+      result.set(driverNum, { compound: lastCompound, stints: stintSummary, pitStops });
+    }
+
+    return result;
+  } catch {
+    return empty;
+  }
+}
+
 interface JolpicaSeasonResponse {
   MRData: {
     RaceTable: {
@@ -116,11 +225,17 @@ export async function fetchHistoricalData(year?: string, round?: string): Promis
       throw new Error('No completed race data found for this selection.');
     }
 
+    const effectiveYear = year ?? new Date().getFullYear().toString();
+
+    // Fetch tyre/stint data from OpenF1 in parallel with result mapping
+    const tyreMap = await fetchTyreData(effectiveYear, race.Circuit.Location.country);
+
     let maxBestLap = '--:--.---';
     let maxGrid = '--';
 
     const mappedLeaderboard: DriverPosition[] = race.Results.map((result) => {
       const code = result.Driver.code || 'UKN';
+      const driverNumber = parseInt(result.number, 10);
       const meta = DRIVERS[code] || {
         color: '#ffffff',
         name: `${result.Driver.givenName} ${result.Driver.familyName}`,
@@ -134,17 +249,21 @@ export async function fetchHistoricalData(year?: string, round?: string): Promis
         }
       }
 
+      const tyreData = tyreMap.get(driverNumber);
+
       return {
         position: parseInt(result.position, 10),
-        driver_number: parseInt(result.number, 10),
+        driver_number: driverNumber,
         name_acronym: code,
         full_name: meta.name,
         team_name: result.Constructor.name,
         team_colour: meta.color,
-        date: result.status === 'Finished' && result.Time ? result.Time.time : result.status,
+        gap_to_leader: result.status === 'Finished' && result.Time ? result.Time.time : result.status,
         interval: null,
         last_lap: result.FastestLap?.Time?.time ?? null,
-        tyre: null,
+        tyre: tyreData?.compound ?? null,
+        tyre_stints: tyreData?.stints ?? [],
+        pit_stops: tyreData?.pitStops ?? null,
         lap_number: null,
       };
     });
@@ -153,7 +272,7 @@ export async function fetchHistoricalData(year?: string, round?: string): Promis
       session: {
         session_key: race.round,
         session_name: race.raceName,
-        session_type: 'Historical Race',
+        session_type: 'Race',
         country_name: race.Circuit.Location.country,
         location: race.Circuit.circuitName,
         circuit_short_name: race.Circuit.circuitId,

@@ -21,6 +21,11 @@ export type TelemetryDriver = {
 
 export type TelemetryResponse = {
   session: string;
+  session_name: string;
+  session_type: string;
+  country_name: string;
+  location: string;
+  circuit_short_name: string;
   timestamp: number;
   drivers: TelemetryDriver[];
 };
@@ -203,6 +208,11 @@ export function buildTelemetryResponse(
 
   return {
     session: slug,
+    session_name: session.session_name,
+    session_type: session.session_type ?? "Race",
+    country_name: session.country_name ?? "",
+    location: session.location ?? "",
+    circuit_short_name: session.circuit_short_name ?? session.session_name,
     timestamp: Math.floor(Date.now() / 1000),
     drivers: sortedDrivers,
   };

@@ -19,7 +19,7 @@ export default function MaxTracker({ currentPos, gap, stats }: MaxTrackerProps) 
           MAX VERSTAPPEN
         </div>
       </div>
-      
+
       <div style={{ padding: '1.25rem' }}>
         {/* BIG STATUS READOUT */}
         <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

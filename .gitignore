@@ -53,3 +53,6 @@ venv/
 # Quarantine / local recovery folders
 *.quarantine-*/
 .recovery-logs/
+
+# Generated prediction cache — regenerate locally with `npm run addons:predictions`
+addons/predictions-cache/*.json

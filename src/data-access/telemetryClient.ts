@@ -15,10 +15,10 @@ function formatLapTime(seconds: number | null | undefined) {
 function normaliseCompound(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const s = raw.toUpperCase().trim();
+  if (s.includes('INTER')) return 'INTER';
   if (s.includes('SOFT')) return 'SOFT';
   if (s.includes('MED')) return 'MEDIUM';
   if (s.includes('HARD')) return 'HARD';
-  if (s.includes('INTER')) return 'INTER';
   if (s.includes('WET')) return 'WET';
   return s;
 }
@@ -40,7 +40,7 @@ function mapTelemetryToDashboard(payload: TelemetryResponseDto): DashboardData {
     full_name: driver.name,
     team_name: driver.team,
     team_colour: driver.color,
-    date: driver.gapToLeader ?? '--',
+    gap_to_leader: driver.gapToLeader ?? '--',
     interval: driver.intervalGap ?? null,
     last_lap: formatLapTime(driver.lapTime),
     tyre: normaliseCompound(driver.compound),
@@ -78,11 +78,11 @@ function mapTelemetryToDashboard(payload: TelemetryResponseDto): DashboardData {
       liveStatus === 'LIVE'
         ? {
             session_key: payload.session,
-            session_name: payload.session.toUpperCase(),
-            session_type: 'Race',
-            country_name: 'OpenF1',
-            location: 'Trackside',
-            circuit_short_name: payload.session,
+            session_name: payload.session_name ?? payload.session.toUpperCase(),
+            session_type: payload.session_type ?? 'Race',
+            country_name: payload.country_name ?? 'OpenF1',
+            location: payload.location ?? 'Trackside',
+            circuit_short_name: payload.circuit_short_name ?? payload.session,
             date_start: new Date(payload.timestamp * 1000).toISOString(),
             current_lap: currentLap || '--',
             status: 'LIVE',
@@ -107,6 +107,7 @@ function mapTelemetryToDashboard(payload: TelemetryResponseDto): DashboardData {
     },
     live_status: liveStatus,
     next_session: nextSession,
+    weekend_schedule: payload.weekend_schedule ?? [],
   };
 }
 

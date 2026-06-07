@@ -1,10 +1,10 @@
 import { useEffect, useReducer } from 'react';
-import { fetchLiveDashboardData } from '../services/openf1';
+import { getLiveDashboardData } from '../data-access/telemetryClient';
 import { fetchHistoricalData, fetchSeasonRaces } from '../services/jolpica';
 import { POLLING_INTERVAL, DEFAULT_YEAR, FALLBACK_YEAR } from '../constants';
-import type { DashboardSession, DriverPosition, MaxStats, SeasonRace } from '../types/f1';
+import type { DashboardSession, DriverPosition, MaxStats, SeasonRace, WeekendSession } from '../types/f1';
 
-type ViewMode = 'LIVE' | 'HISTORICAL' | 'REPLAY' | 'CHAT' | 'PREDICTIONS' | 'NEWS';
+export type ViewMode = 'LIVE' | 'HISTORICAL' | 'REPLAY' | 'CHAT' | 'PREDICTIONS' | 'NEWS';
 
 interface DashboardState {
   viewMode: ViewMode;
@@ -20,6 +20,7 @@ interface DashboardState {
   selectedYear: string;
   selectedRound: string | null;
   seasonRaces: SeasonRace[];
+  weekendSchedule: WeekendSession[];
 }
 
 type DashboardAction =
@@ -37,6 +38,7 @@ type DashboardAction =
         next_session?: DashboardSession | null;
         data_health?: 'healthy' | 'degraded' | 'offline';
         warnings?: string[];
+        weekend_schedule?: WeekendSession[];
       };
     }
   | { type: 'FETCH_ERROR'; payload: string }
@@ -65,6 +67,7 @@ const dashboardReducer = (state: DashboardState, action: DashboardAction): Dashb
         dataState: action.payload.data_health ?? 'healthy',
         warnings: action.payload.warnings ?? [],
         errorMsg: action.payload.data_health === 'offline' ? 'Live telemetry is currently unavailable.' : null,
+        weekendSchedule: action.payload.weekend_schedule ?? [],
       };
     case 'FETCH_ERROR':
       return {
@@ -121,6 +124,7 @@ const initialState: DashboardState = {
   selectedYear: DEFAULT_YEAR,
   selectedRound: null,
   seasonRaces: [],
+  weekendSchedule: [],
 };
 
 export function useDashboardData() {
@@ -174,7 +178,7 @@ export function useDashboardData() {
       try {
         let data;
         if (state.viewMode === 'LIVE') {
-          data = await fetchLiveDashboardData();
+          data = await getLiveDashboardData();
         } else {
           data = await fetchHistoricalData(state.selectedYear, state.selectedRound || undefined);
         }
