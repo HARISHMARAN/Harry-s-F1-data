@@ -353,24 +353,30 @@ function App() {
               {errorMsg ?? 'Telemetry backend is offline. Showing limited UI until recovery.'}
             </p>
           </div>
+        ) : apiLocked ? (
+          /* Full-screen race-in-progress state — OpenF1 locks the API during live sessions */
+          <div style={{ pointerEvents: 'auto', padding: '2rem 1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '1.5rem' }}>
+            <div className="glass-panel" style={{ maxWidth: 560, width: '100%', padding: '2.5rem', borderColor: 'rgba(234, 51, 35, 0.5)', borderTop: '3px solid var(--accent-f1)', textAlign: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                <div className="pulsing-dot" />
+                <strong style={{ color: 'var(--accent-f1)', fontFamily: "'JetBrains Mono', monospace", fontSize: '1rem', letterSpacing: '0.14em' }}>
+                  RACE IN PROGRESS
+                </strong>
+              </div>
+              <h2 style={{ fontSize: '1.6rem', marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
+                Live Telemetry Restricted
+              </h2>
+              <p style={{ color: 'var(--text-secondary)', lineHeight: 1.65, fontSize: '0.92rem', marginBottom: '1.25rem' }}>
+                OpenF1 restricts API access to unauthenticated users during live sessions. Timing and telemetry data will resume automatically when the race finishes.
+              </p>
+              <div style={{ padding: '0.75rem 1rem', borderRadius: 8, background: 'rgba(234,51,35,0.07)', border: '1px solid rgba(234,51,35,0.2)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.72rem', color: 'var(--text-muted)', letterSpacing: '0.1em' }}>
+                POLLING EVERY 5S · WILL RESTORE AUTOMATICALLY
+              </div>
+            </div>
+          </div>
         ) : (
           <main style={{ position: 'relative', width: '100%', minHeight: '100vh', pointerEvents: 'none' }}>
-            {apiLocked && (
-              <div style={{ pointerEvents: 'auto', padding: '0 1rem' }}>
-                <div className="glass-panel" style={{ borderColor: 'rgba(234, 51, 35, 0.5)', marginBottom: '1rem', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div className="pulsing-dot" style={{ flexShrink: 0 }} />
-                  <div>
-                    <strong style={{ color: 'var(--accent-f1)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.82rem', letterSpacing: '0.1em' }}>
-                      RACE IN PROGRESS
-                    </strong>
-                    <p style={{ marginTop: '0.3rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                      OpenF1 restricts unauthenticated API access during live sessions. Telemetry and timing will resume automatically when the race ends.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-            {!apiLocked && (dataState === 'degraded' || dataState === 'offline') && (
+            {(dataState === 'degraded' || dataState === 'offline') && (
               <div style={{ pointerEvents: 'auto', padding: '0 1rem' }}>
                 <div className="glass-panel" style={{ borderColor: 'rgba(244, 180, 0, 0.45)', marginBottom: '1rem', padding: '0.85rem 1rem' }}>
                   <strong style={{ color: '#f4b400', fontSize: '0.85rem', letterSpacing: '0.08em' }}>DATA MODE: {dataState.toUpperCase()}</strong>
