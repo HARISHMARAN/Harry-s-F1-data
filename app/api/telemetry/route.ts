@@ -72,6 +72,10 @@ type TelemetryPayload =
 
 const FRESH_TTL_S = 5;
 const STALE_TTL_S = 60;
+// no_live responses are safe to cache — buildTelemetryPayload calls cacheDel
+// on lockout detection so a stale no_live cache never masks a live race.
+const NO_LIVE_FRESH_TTL_S = 30;
+const NO_LIVE_STALE_TTL_S = 120;
 const MAX_CAR_DATA_DRIVERS = 6;
 const TELEMETRY_RESPONSE_TIMEOUT_MS = 9_000;
 const FALLBACK_NEXT_SESSION_TIMEOUT_MS = 4_000;
@@ -509,7 +513,8 @@ async function refreshTelemetry(): Promise<TelemetryPayload> {
       // OpenF1 unlocks the API.
       const isLiveLock = payload.status === "live" &&
         (payload as { session?: string }).session === "live-session-api-locked";
-      const ttl = isLiveLock ? FRESH_TTL_S : STALE_TTL_S;
+      const isNoLivePaylod = payload.status === "no_live";
+      const ttl = isLiveLock ? FRESH_TTL_S : isNoLivePaylod ? NO_LIVE_STALE_TTL_S : STALE_TTL_S;
       await Promise.all([
         cacheSet(CACHE_KEY_PAYLOAD, payload, ttl),
         cacheSet(CACHE_KEY_FETCHED_AT, Date.now(), ttl),
@@ -555,19 +560,18 @@ export async function GET(request: NextRequest) {
   try {
     const now = Date.now();
 
-    // Never serve a stale no_live cache hit — it could be wrong during a live
-    // race (e.g. cached before the OpenF1 lockout fix was deployed, or cached
-    // before the race started). Always force a fresh fetch if status is no_live.
-    const cachedIsNoLive = !cachedPayload || cachedPayload.status === "no_live";
+    const isNoLive = !cachedPayload || cachedPayload.status === "no_live";
+    const freshTtlMs = (isNoLive ? NO_LIVE_FRESH_TTL_S : FRESH_TTL_S) * 1000;
+    const staleTtlMs = (isNoLive ? NO_LIVE_STALE_TTL_S : STALE_TTL_S) * 1000;
 
-    if (cachedPayload && !cachedIsNoLive && lastFetchMs && now - lastFetchMs < FRESH_TTL_S * 1000) {
+    if (cachedPayload && lastFetchMs && now - lastFetchMs < freshTtlMs) {
       return NextResponse.json(cachedPayload, {
         status: 200,
         headers: { "x-telemetry-cache": "hit" },
       });
     }
 
-    if (cachedPayload && !cachedIsNoLive) {
+    if (cachedPayload && lastFetchMs && now - lastFetchMs < staleTtlMs) {
       void refreshTelemetry().catch(() => null);
       return NextResponse.json(cachedPayload, {
         status: 200,

@@ -251,7 +251,7 @@ export async function getLiveDashboardData(): Promise<DashboardData> {
     const result = await fetchJsonWithPolicy({
       url: '/api/telemetry',
       init: { cache: 'no-store' },
-      timeoutMs: 7_000,
+      timeoutMs: 12_000,
       retries: 0,
       schema: telemetryResponseSchema,
       fallbackData: fallbackTelemetry,
