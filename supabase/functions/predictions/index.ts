@@ -4,53 +4,13 @@ declare const Deno: {
 
 export {};
 
-const predictions = [
-  {
-    id: "prediction1",
-    title: "Australian GP Forecast",
-    race: "2026 Australian Grand Prix",
-    category: "Forecast",
-    season: 2026,
-    result: {
-      headline: "Projected podium: RUS > ANT > HAD",
-      winner: "RUS",
-      podium: ["RUS", "ANT", "HAD"],
-      note: "Fastest qualifying pace in the pack translates into the strongest race projection in this dataset.",
-    },
-  },
-  {
-    id: "prediction2",
-    title: "Chinese GP Forecast",
-    race: "2026 Chinese Grand Prix",
-    category: "Forecast",
-    season: 2026,
-    result: {
-      headline: "Projected podium: RUS > LEC > HAM",
-      winner: "RUS",
-      podium: ["RUS", "LEC", "HAM"],
-      note: "The race score leans on Australia carry-over plus China sector pace, favoring RUS at the top.",
-    },
-  },
-  {
-    id: "racepace",
-    title: "Chinese GP Pace Study",
-    race: "2026 Chinese Grand Prix",
-    category: "Analysis",
-    season: 2026,
-    result: {
-      headline: "Pace leader: ANT",
-      winner: "ANT",
-      podium: ["ANT", "RUS", "HAM"],
-      note: "Pure pace analysis puts ANT quickest on the combined ultimate-lap baseline.",
-    },
-  },
-] as const;
+const predictions: never[] = [];
 
 const repoSummary = {
   title: "2026 F1 Predictions",
   description:
-    "A local prediction pack imported from the upstream repository and exposed through the dashboard as a dedicated web page.",
-  sourcePath: "addons/2026_f1_predictions",
+    "No pre-generated predictions. Predictions are generated live from OpenF1 session data and Jolpica historical results.",
+  sourcePath: "app/api/predictions/forecast",
 };
 
 function json(body: unknown, status = 200): Response {
@@ -88,25 +48,10 @@ Deno.serve((req) => {
   if (tail.length === 0) {
     return json({
       repoSummary,
-      defaultId: predictions[0]?.id ?? null,
-      predictions: predictions.map(({ id, title, race, category, season }) => ({
-        id,
-        title,
-        race,
-        category,
-        season,
-      })),
+      defaultId: null,
+      predictions: [],
     });
   }
 
-  if (tail.length === 1) {
-    const id = decodeURIComponent(tail[0]);
-    const prediction = predictions.find((entry) => entry.id === id);
-    if (!prediction) {
-      return json({ error: "Prediction not found" }, 404);
-    }
-    return json(prediction);
-  }
-
-  return json({ error: "Not found" }, 404);
+  return json({ error: "Prediction not found" }, 404);
 });

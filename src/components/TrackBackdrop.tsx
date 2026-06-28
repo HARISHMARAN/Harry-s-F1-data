@@ -6,21 +6,18 @@ interface TrackBackdropProps {
   session: DashboardSession | null;
 }
 
-function removeSmallSvgMarkerPaths(svg: string) {
-  return svg.replace(/<path\b[^>]*\bd="([^"]*)"[^>]*\/?>/g, (pathMarkup, pathData: string) => {
-    const compactPathLength = pathData.replace(/\s+/g, '').length;
-    return compactPathLength < 240 ? '' : pathMarkup;
-  });
-}
-
 function sanitizeTrackSvg(svg: string) {
-  return removeSmallSvgMarkerPaths(svg)
-    .replace(/<metadata\b[\s\S]*?<\/metadata>/gi, '')
-    .replace(/<defs\b[\s\S]*?<\/defs>/gi, '')
-    .replace(/<g\b[^>]*\baria-label="[^"]*"[^>]*>[\s\S]*?<\/g>/gi, '')
-    .replace(/<circle\b[^>]*\/?>/gi, '')
-    .replace(/<text\b[\s\S]*?<\/text>/gi, '')
-    .replace(/<rect\b[^>]*\/?>/gi, '');
+  const pathMatch = svg.match(/<path\b[^>]*\bd="([^"]*)"[^>]*\/?>/i);
+  if (!pathMatch) {
+    return svg.replace(/<metadata\b[\s\S]*?<\/metadata>/gi, '')
+      .replace(/<defs\b[\s\S]*?<\/defs>/gi, '')
+      .replace(/<g\b[^>]*>[\s\S]*?<\/g>/gi, '')
+      .replace(/<circle\b[^>]*\/?>/gi, '')
+      .replace(/<text\b[\s\S]*?<\/text>/gi, '')
+      .replace(/<rect\b[^>]*\/?>/gi, '');
+  }
+  const primaryPath = pathMatch[1];
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 637.85 238.48"><path d="${primaryPath}" fill="none"/></svg>`;
 }
 
 function styleTrackSvg(svg: string) {
@@ -46,29 +43,11 @@ function styleTrackSvg(svg: string) {
       .track-asset-svg path {
         fill: none !important;
         stroke: rgba(21, 209, 204, 0.9) !important;
-        stroke-width: 3.4 !important;
+        stroke-width: 4 !important;
         stroke-linecap: round !important;
         stroke-linejoin: round !important;
         stroke-dasharray: none !important;
         vector-effect: non-scaling-stroke;
-      }
-      .track-asset-svg path:first-of-type {
-        stroke: rgba(255, 255, 255, 0.2) !important;
-        stroke-width: 18 !important;
-      }
-      .track-asset-svg path:nth-of-type(2) {
-        stroke: rgba(234, 51, 35, 0.65) !important;
-        stroke-width: 7 !important;
-      }
-      .track-asset-svg rect,
-      .track-asset-svg circle,
-      .track-asset-svg text,
-      .track-asset-svg [aria-label],
-      .track-asset-svg metadata,
-      .track-asset-svg pattern,
-      .track-asset-svg clipPath,
-      .track-asset-svg defs {
-        display: none !important;
       }
     </style>
     <div class="track-asset-shell">${styledSvg}</div>

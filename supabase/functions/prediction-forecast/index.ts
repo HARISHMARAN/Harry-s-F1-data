@@ -48,9 +48,20 @@ async function buildForecast(grandPrix?: string, year?: number) {
   scoreRows(latestRows, 0.7, scores);
 
   if (!scores.size) {
-    scores.set('RUS', 10);
-    scores.set('LEC', 9);
-    scores.set('HAM', 8);
+    return {
+      title: 'Prediction Unavailable',
+      raceName: grandPrix?.trim() || 'Unknown Grand Prix',
+      roundLabel: selectedRace ? `Round ${selectedRace.round}` : 'Auto-selected',
+      confidence: 0,
+      winner: 'DATA UNAVAILABLE',
+      podium: [],
+      narrative: 'No live or historical race data available. Cannot generate predictions without OpenF1 session data or Jolpica race results.',
+      factors: ['No data sources available'],
+      sources: [],
+      updatedAt: now.toISOString(),
+      matchedBy: 'No matching data found',
+      dataSignals: {},
+    };
   }
 
   const podium = [...scores.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([code]) => code);

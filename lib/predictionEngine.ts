@@ -429,8 +429,53 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
   }
 
   if (!baselineScores.size) {
-    ['PIA', 'NOR', 'RUS', 'ANT', 'LEC', 'VER'].forEach((driver, index) => baselineScores.set(driver, 12 - index));
-    factors.push('Fallback 2026 contender ranking used because live and historical sources were unavailable.');
+    factors.push('No live or historical race data available. Predictions cannot be generated.');
+    sources.push('Data source unavailable');
+    const fallbackSessionIds = ['practice1', 'practice2', 'sprintQualifying', 'sprint', 'qualifying', 'race'];
+    return {
+      title: `${raceLabel} Weekend Prediction Studio`,
+      raceName,
+      roundLabel: selectedRace ? `Round ${selectedRace.round}` : `${raceLabel} weekend`,
+      confidence: 0,
+      winner: 'DATA UNAVAILABLE',
+      podium: [],
+      narrative: `Unable to generate predictions for ${raceLabel}. OpenF1 has not published session data and Jolpica returned no recent race results.`,
+      factors,
+      sources,
+      updatedAt: now.toISOString(),
+      matchedBy: meetingKey
+        ? `Matched OpenF1 meeting ${meetingKey} at ${raceSession?.location ?? 'unknown circuit'}`
+        : 'No matching OpenF1 meeting found',
+      weekend: fallbackSessionIds.map((id) => ({
+        id,
+        label: sessionLabel(id),
+        sessionName: sessionLabel(id),
+        sessionType: 'Unknown',
+        scheduledAt: null,
+        status: 'not_scheduled',
+        confidence: 0,
+        winner: 'N/A',
+        podium: [],
+        basis: 'No session data available from OpenF1.',
+        resultSource: 'unavailable' as const,
+        liveSignals: [],
+        unavailableReason: 'OpenF1 has not published data for this session.',
+      })),
+      weekendStatus: {
+        meetingKey,
+        circuit: raceSession?.circuit_short_name ?? 'Unknown',
+        location: raceSession?.location ?? 'Unknown',
+        nextSession: nextSession?.session_name ?? null,
+        latestCompletedSession: null,
+        liveSession: null,
+      },
+      dataSignals: {
+        latestRaceWinner: undefined,
+        sameRoundWinner: undefined,
+        liveLeader: undefined,
+        circuit: raceSession?.circuit_short_name ?? raceName,
+      },
+    };
   }
 
   const sessionIds = ['practice1', 'practice2', 'sprintQualifying', 'sprint', 'qualifying', 'race'];
