@@ -2,7 +2,7 @@ import { useEffect, useReducer } from 'react';
 import { getLiveDashboardData } from '../data-access/telemetryClient';
 import { fetchHistoricalData, fetchSeasonRaces } from '../services/jolpica';
 import { POLLING_INTERVAL, DEFAULT_YEAR, FALLBACK_YEAR } from '../constants';
-import type { DashboardSession, DriverPosition, MaxStats, SeasonRace, WeekendSession } from '../types/f1';
+import type { DashboardSession, DriverPosition, LapCount, MaxStats, RaceControlMessage, SeasonRace, TrackStatus, WeatherData, WeekendSession } from '../types/f1';
 
 export type ViewMode = 'LIVE' | 'HISTORICAL' | 'REPLAY' | 'CHAT' | 'PREDICTIONS' | 'NEWS';
 
@@ -22,6 +22,11 @@ interface DashboardState {
   seasonRaces: SeasonRace[];
   weekendSchedule: WeekendSession[];
   apiLocked: boolean;
+  trackStatus: TrackStatus | null;
+  sessionRemaining: string | null;
+  lapCount: LapCount | null;
+  weather: WeatherData | null;
+  raceControl: RaceControlMessage[];
 }
 
 type DashboardAction =
@@ -41,6 +46,11 @@ type DashboardAction =
         warnings?: string[];
         weekend_schedule?: WeekendSession[];
         api_locked?: boolean;
+        track_status?: TrackStatus | null;
+        session_remaining?: string | null;
+        lap_count?: LapCount | null;
+        weather?: WeatherData | null;
+        race_control?: RaceControlMessage[];
       };
     }
   | { type: 'FETCH_ERROR'; payload: string }
@@ -71,6 +81,11 @@ const dashboardReducer = (state: DashboardState, action: DashboardAction): Dashb
         errorMsg: action.payload.data_health === 'offline' ? 'Live telemetry is currently unavailable.' : null,
         weekendSchedule: action.payload.weekend_schedule ?? [],
         apiLocked: action.payload.api_locked ?? false,
+        trackStatus: action.payload.track_status ?? null,
+        sessionRemaining: action.payload.session_remaining ?? null,
+        lapCount: action.payload.lap_count ?? null,
+        weather: action.payload.weather ?? null,
+        raceControl: action.payload.race_control ?? [],
       };
     case 'FETCH_ERROR':
       return {
@@ -129,6 +144,11 @@ const initialState: DashboardState = {
   seasonRaces: [],
   weekendSchedule: [],
   apiLocked: false,
+  trackStatus: null,
+  sessionRemaining: null,
+  lapCount: null,
+  weather: null,
+  raceControl: [],
 };
 
 export function useDashboardData() {
@@ -186,7 +206,17 @@ export function useDashboardData() {
         } else {
           data = await fetchHistoricalData(state.selectedYear, state.selectedRound || undefined);
         }
-        dispatch({ type: 'FETCH_SUCCESS', payload: data });
+        dispatch({
+          type: 'FETCH_SUCCESS',
+          payload: {
+            ...data,
+            track_status: data.track_status ?? null,
+            session_remaining: data.session_remaining ?? null,
+            lap_count: data.lap_count ?? null,
+            weather: data.weather ?? null,
+            race_control: data.race_control ?? [],
+          },
+        });
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to load OpenF1 data.";
         const transient = /aborted|failed to fetch|network/i.test(message.toLowerCase());

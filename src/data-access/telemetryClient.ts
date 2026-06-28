@@ -34,19 +34,56 @@ function mapTelemetryToDashboard(payload: TelemetryResponseDto): DashboardData {
   });
 
   let fallbackPos = 1;
-  const leaderboard = driversSorted.map((driver) => ({
-    position: driver.position ?? fallbackPos++,
-    driver_number: 0,
-    name_acronym: driver.code,
-    full_name: driver.name,
-    team_name: driver.team,
-    team_colour: driver.color,
-    gap_to_leader: driver.gapToLeader ?? '--',
-    interval: driver.intervalGap ?? null,
-    last_lap: formatLapTime(driver.lapTime),
-    tyre: normaliseCompound(driver.compound),
-    lap_number: driver.lap ?? null,
-  }));
+  const leaderboard = driversSorted.map((driver) => {
+    // sectors can be legacy tuple [n,n,n] or rich object array from FastF1
+    const rawSectors = driver.sectors;
+    const sectorDetails: import('../types/f1').SectorDetail[] | undefined =
+      Array.isArray(rawSectors) && rawSectors.length > 0 && typeof rawSectors[0] === 'object' && rawSectors[0] !== null && 'value' in (rawSectors[0] as object)
+        ? (rawSectors as NonNullable<typeof driver.sectorDetails>).map((s) =>
+            s === null ? null : {
+              time: s.time ?? null,
+              value: s.value ?? null,
+              personal_fastest: s.personal_fastest ?? false,
+              overall_fastest: s.overall_fastest ?? false,
+              segment_count: s.segment_count ?? null,
+            }
+          ) as import('../types/f1').SectorDetail[]
+        : undefined;
+
+    return {
+      position: driver.position ?? fallbackPos++,
+      driver_number: driver.driverNumber ?? 0,
+      name_acronym: driver.code,
+      full_name: driver.name,
+      team_name: driver.team,
+      team_colour: driver.color,
+      gap_to_leader: driver.gapToLeader ?? '--',
+      interval: driver.intervalGap ?? null,
+      last_lap: driver.lapTimeDisplay ?? formatLapTime(driver.lapTime),
+      tyre: normaliseCompound(driver.compound),
+      lap_number: driver.lap ?? null,
+      tyre_age: driver.tyreAge ?? null,
+      pit_stops: driver.pitStops ?? null,
+      in_pit: driver.inPit ?? false,
+      driver_status: driver.status ?? 'OK',
+      stints: driver.stints?.map((s) => ({
+        compound: s.compound ?? null,
+        laps: s.laps ?? null,
+        new: s.new ?? null,
+        tyre_age_at_start: s.tyre_age_at_start ?? null,
+        tyre_not_changed: s.tyre_not_changed ?? false,
+      })) ?? undefined,
+      sector_details: sectorDetails,
+      speeds: driver.speeds
+        ? Object.fromEntries(Object.entries(driver.speeds).map(([k, v]) => [k, {
+            speed: v.speed ?? null,
+            personal_fastest: v.personal_fastest ?? false,
+            overall_fastest: v.overall_fastest ?? false,
+          }]))
+        : undefined,
+      delta_to_best: driver.deltaToBest ?? null,
+    };
+  });
 
   const laps = payload.drivers
     .map((driver) => driver.lapTime)
@@ -110,6 +147,32 @@ function mapTelemetryToDashboard(payload: TelemetryResponseDto): DashboardData {
     next_session: nextSession,
     weekend_schedule: payload.weekend_schedule ?? [],
     api_locked: isApiLocked || undefined,
+    track_status: payload.track_status
+      ? { status: payload.track_status.status ?? null, message: payload.track_status.message ?? null, code: payload.track_status.code ?? null }
+      : null,
+    session_remaining: payload.session_remaining ?? null,
+    lap_count: payload.lap_count
+      ? { current: payload.lap_count.current ?? null, total: payload.lap_count.total ?? null }
+      : null,
+    weather: payload.weather
+      ? {
+          air_temperature: typeof payload.weather.air_temperature === 'number' ? payload.weather.air_temperature : null,
+          track_temperature: typeof payload.weather.track_temperature === 'number' ? payload.weather.track_temperature : null,
+          humidity: typeof payload.weather.humidity === 'number' ? payload.weather.humidity : null,
+          pressure: typeof payload.weather.pressure === 'number' ? payload.weather.pressure : null,
+          wind_speed: typeof payload.weather.wind_speed === 'number' ? payload.weather.wind_speed : null,
+          wind_direction: typeof payload.weather.wind_direction === 'number' ? payload.weather.wind_direction : null,
+          rainfall: typeof payload.weather.rainfall === 'number' ? payload.weather.rainfall : null,
+        }
+      : null,
+    race_control: payload.race_control?.map((msg) => ({
+      category: msg.category ?? null,
+      flag: msg.flag ?? null,
+      message: msg.message ?? '',
+      lap_number: msg.lap_number ?? null,
+      driver_number: msg.driver_number ?? null,
+      timestamp: msg.timestamp ?? null,
+    })) ?? [],
   };
 }
 

@@ -1,5 +1,27 @@
 import { z } from 'zod';
 
+const sectorSchema = z.object({
+  time: z.string().nullable().optional(),
+  value: z.number().nullable().optional(),
+  personal_fastest: z.boolean().optional(),
+  overall_fastest: z.boolean().optional(),
+  segment_count: z.number().nullable().optional(),
+}).nullable();
+
+const speedTrapSchema = z.object({
+  speed: z.number().nullable().optional(),
+  personal_fastest: z.boolean().optional(),
+  overall_fastest: z.boolean().optional(),
+});
+
+const liveStintSchema = z.object({
+  compound: z.string().nullable().optional(),
+  laps: z.number().nullable().optional(),
+  new: z.boolean().nullable().optional(),
+  tyre_age_at_start: z.number().nullable().optional(),
+  tyre_not_changed: z.boolean().optional(),
+});
+
 export const telemetryDriverSchema = z.object({
   code: z.string().default(''),
   name: z.string().default('Unknown Driver'),
@@ -8,14 +30,30 @@ export const telemetryDriverSchema = z.object({
   position: z.number().nullable().optional(),
   lap: z.number().nullable().optional(),
   lapTime: z.number().nullable().optional(),
+  lapTimeDisplay: z.string().nullable().optional(),
+  bestLapTime: z.number().nullable().optional(),
+  bestLapTimeDisplay: z.string().nullable().optional(),
   deltaToBest: z.number().nullable().optional(),
   /** Formatted gap to leader string: "LEADER", "+1.234", "+1L" */
   gapToLeader: z.string().nullable().optional(),
   /** Formatted gap to car directly ahead */
   intervalGap: z.string().nullable().optional(),
   compound: z.string().nullable().optional(),
-  sectors: z.tuple([z.number().nullable(), z.number().nullable(), z.number().nullable()]).optional(),
+  /** Legacy tuple format (OpenF1 path) */
+  sectors: z.union([
+    z.tuple([z.number().nullable(), z.number().nullable(), z.number().nullable()]),
+    z.array(sectorSchema),
+  ]).optional(),
+  /** Rich sector objects from FastF1 path */
+  sectorDetails: z.array(sectorSchema).optional(),
+  speeds: z.record(z.string(), speedTrapSchema).optional(),
+  stints: z.array(liveStintSchema).optional(),
   stint: z.number().nullable().optional(),
+  tyreAge: z.number().nullable().optional(),
+  pitStops: z.number().nullable().optional(),
+  inPit: z.boolean().optional(),
+  status: z.string().optional(),
+  driverNumber: z.number().optional(),
 });
 
 export const telemetryResponseSchema = z.object({
@@ -50,6 +88,90 @@ export const telemetryResponseSchema = z.object({
       date_end: z.string().nullable().optional(),
     })
   ).optional(),
+  track_status: z.object({
+    status: z.string().nullable().optional(),
+    message: z.string().nullable().optional(),
+    code: z.string().nullable().optional(),
+  }).nullable().optional(),
+  session_remaining: z.string().nullable().optional(),
+  lap_count: z.object({
+    current: z.number().nullable().optional(),
+    total: z.number().nullable().optional(),
+  }).nullable().optional(),
+  weather: z.object({
+    air_temperature: z.union([z.number(), z.string()]).nullable().optional(),
+    track_temperature: z.union([z.number(), z.string()]).nullable().optional(),
+    humidity: z.union([z.number(), z.string()]).nullable().optional(),
+    pressure: z.union([z.number(), z.string()]).nullable().optional(),
+    wind_speed: z.union([z.number(), z.string()]).nullable().optional(),
+    wind_direction: z.union([z.number(), z.string()]).nullable().optional(),
+    rainfall: z.union([z.number(), z.string()]).nullable().optional(),
+  }).nullable().optional(),
+  race_control: z.array(z.object({
+    category: z.string().nullable().optional(),
+    flag: z.string().nullable().optional(),
+    message: z.string().default(''),
+    lap_number: z.number().nullable().optional(),
+    driver_number: z.number().nullable().optional(),
+    timestamp: z.string().nullable().optional(),
+  })).optional(),
+  telemetry_intelligence: z.object({
+    session_name: z.string().optional(),
+    session_type: z.string().optional(),
+    status: z.enum(['live', 'no_live']).optional(),
+    generated_at: z.string().optional(),
+    weather: z.object({
+      air_temperature: z.number().nullable().optional(),
+      track_temperature: z.number().nullable().optional(),
+      humidity: z.number().nullable().optional(),
+      rainfall: z.number().nullable().optional(),
+      wind_speed: z.number().nullable().optional(),
+      pressure: z.number().nullable().optional(),
+    }).nullable().optional(),
+    drivers: z.array(z.object({
+      driver_number: z.number(),
+      code: z.string(),
+      name: z.string(),
+      team: z.string(),
+      position: z.number().nullable().optional(),
+      current_lap: z.number().nullable().optional(),
+      compound: z.string().nullable().optional(),
+      tyre_age_laps: z.number().nullable().optional(),
+      stint_number: z.number().nullable().optional(),
+      pit_stops: z.number().optional(),
+      last_lap_time: z.number().nullable().optional(),
+      top_speed: z.number().nullable().optional(),
+      elimination_status: z.string().optional(),
+      battery_status: z.string().optional(),
+      sectors: z.array(sectorSchema).optional(),
+      speeds: z.record(z.string(), speedTrapSchema).optional(),
+      stints: z.array(liveStintSchema).optional(),
+      best_lap_time: z.number().nullable().optional(),
+    })).optional(),
+    race_control: z.array(z.object({
+      category: z.string().nullable().optional(),
+      flag: z.string().nullable().optional(),
+      message: z.string().default(''),
+      lap_number: z.number().nullable().optional(),
+    })).optional(),
+    eliminations: z.object({
+      drivers: z.array(z.string()),
+      teams: z.array(z.string()),
+      note: z.string(),
+    }).optional(),
+    battery: z.object({
+      available: z.boolean(),
+      note: z.string(),
+    }).optional(),
+    track_status: z.string().optional(),
+    track_status_flag: z.string().nullable().optional(),
+    session_remaining: z.string().nullable().optional(),
+    lap_count: z.object({
+      current: z.number().nullable().optional(),
+      total: z.number().nullable().optional(),
+    }).nullable().optional(),
+    data_notes: z.array(z.string()).optional(),
+  }).optional(),
   warnings: z.array(z.string()).optional(),
 });
 

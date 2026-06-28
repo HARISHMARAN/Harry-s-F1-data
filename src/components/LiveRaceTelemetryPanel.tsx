@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Activity, AlertTriangle, BatteryWarning, CloudRain, Droplets, Flag, Gauge, Radio, Timer, Wind } from 'lucide-react';
-import type { DashboardSession } from '../types/f1';
+import type { DashboardSession, LapCount, RaceControlMessage, TrackStatus, WeatherData } from '../types/f1';
 import { formatSessionScheduleWithWeekday } from '../utils/dateFormat';
 
 type DriverTelemetryInsight = {
@@ -53,6 +53,8 @@ type TelemetryIntelligence = {
   };
   track_status: string;
   data_notes: string[];
+  session_remaining?: string | null;
+  lap_count?: { current: number | null; total: number | null } | null;
 };
 
 type TelemetryApiResponse = {
@@ -65,6 +67,12 @@ type TelemetryApiResponse = {
 type LiveRaceTelemetryPanelProps = {
   nextSession: DashboardSession | null;
   compact?: boolean;
+  trackStatus?: TrackStatus | null;
+  sessionRemaining?: string | null;
+  lapCount?: LapCount | null;
+  weather?: WeatherData | null;
+  raceControl?: RaceControlMessage[];
+  liveStatus?: 'LIVE' | 'NO_RACE';
 };
 
 const REFRESH_MS = 12_000;
@@ -140,7 +148,16 @@ function MetricTile({ icon, label, value }: { icon: ReactNode; label: string; va
   );
 }
 
-export default function LiveRaceTelemetryPanel({ nextSession, compact = false }: LiveRaceTelemetryPanelProps) {
+export default function LiveRaceTelemetryPanel({
+  nextSession,
+  compact = false,
+  trackStatus: trackStatusProp,
+  sessionRemaining: sessionRemainingProp,
+  lapCount: lapCountProp,
+  weather: weatherProp,
+  raceControl: raceControlProp,
+  liveStatus: liveStatusProp,
+}: LiveRaceTelemetryPanelProps) {
   const [payload, setPayload] = useState<TelemetryApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -182,13 +199,19 @@ export default function LiveRaceTelemetryPanel({ nextSession, compact = false }:
   const sessionLabel = intelligence?.session_name ?? nextSession?.session_name ?? 'Miami Grand Prix';
   const sessionType = intelligence?.session_type ?? nextSession?.session_type ?? 'Race';
   const raceLabel = nextSession?.circuit_short_name ?? nextSession?.location ?? 'Miami';
-  const isLive = payload?.status === 'live';
-  const weather = intelligence?.weather ?? null;
+  // Props from App state take priority over self-fetched intelligence
+  const isLive = liveStatusProp === 'LIVE' || payload?.status === 'live';
+  const weather = weatherProp ?? intelligence?.weather ?? null;
+  const raceControlData = raceControlProp ?? intelligence?.race_control ?? [];
+  const trackStatusData = trackStatusProp ?? null;
+  const sessionRemainingDisplay = sessionRemainingProp ?? intelligence?.session_remaining ?? null;
+  const lapCountData = lapCountProp ?? intelligence?.lap_count ?? null;
   const drivers = useMemo(() => intelligence?.drivers.slice(0, compact ? 6 : 10) ?? [], [compact, intelligence]);
-  const raceControl = intelligence?.race_control.slice(0, compact ? 2 : 4) ?? [];
+  const raceControl = raceControlData.slice(0, compact ? 2 : 4);
   const eliminatedDrivers = intelligence?.eliminations.drivers ?? [];
   const eliminatedTeams = intelligence?.eliminations.teams ?? [];
   const nextStart = payload?.next_session?.date_start ?? nextSession?.date_start ?? null;
+  const trackStatusLabel = trackStatusData?.message ?? intelligence?.track_status ?? '--';
 
   return (
     <section style={{ width: '100%', maxWidth: '100%', minWidth: 0, minHeight: 0, display: 'grid', alignContent: 'start', gap: '0.9rem' }}>
@@ -227,12 +250,18 @@ export default function LiveRaceTelemetryPanel({ nextSession, compact = false }:
       ) : null}
 
       <div style={{ display: 'grid', gridTemplateColumns: compact ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(92px, 1fr))', gap: '0.55rem' }}>
-        <MetricTile icon={<Gauge size={13} />} label="Track" value={formatValue(weather?.track_temperature, ' C')} />
-        <MetricTile icon={<Timer size={13} />} label="Air" value={formatValue(weather?.air_temperature, ' C')} />
-        <MetricTile icon={<Droplets size={13} />} label="Humidity" value={formatValue(weather?.humidity, '%')} />
-        <MetricTile icon={<CloudRain size={13} />} label="Rainfall" value={formatValue(weather?.rainfall, '')} />
-        <MetricTile icon={<Wind size={13} />} label="Wind" value={formatValue(weather?.wind_speed, ' m/s')} />
-        <MetricTile icon={<Flag size={13} />} label="Flag" value={intelligence?.track_status ?? '--'} />
+        <MetricTile icon={<Gauge size={13} />} label="Track °C" value={formatValue(typeof weather?.track_temperature === 'number' ? weather.track_temperature : null, '')} />
+        <MetricTile icon={<Timer size={13} />} label="Air °C" value={formatValue(typeof weather?.air_temperature === 'number' ? weather.air_temperature : null, '')} />
+        <MetricTile icon={<Droplets size={13} />} label="Humidity" value={formatValue(typeof weather?.humidity === 'number' ? weather.humidity : null, '%')} />
+        <MetricTile icon={<CloudRain size={13} />} label="Rainfall" value={typeof weather?.rainfall === 'number' && weather.rainfall > 0 ? 'YES' : 'DRY'} />
+        <MetricTile icon={<Wind size={13} />} label="Wind" value={formatValue(typeof weather?.wind_speed === 'number' ? weather.wind_speed : null, ' m/s')} />
+        <MetricTile icon={<Flag size={13} />} label="Track Status" value={trackStatusLabel} />
+        {lapCountData?.current != null && (
+          <MetricTile icon={<Activity size={13} />} label="Lap" value={`${lapCountData.current}${lapCountData.total != null ? ` / ${lapCountData.total}` : ''}`} />
+        )}
+        {sessionRemainingDisplay && (
+          <MetricTile icon={<Timer size={13} />} label="Remaining" value={sessionRemainingDisplay} />
+        )}
       </div>
 
       <div style={{ border: '1px solid rgba(21, 209, 204, 0.22)', borderRadius: 8, overflow: 'hidden', background: 'rgba(4, 10, 14, 0.42)' }}>

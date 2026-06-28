@@ -1,3 +1,31 @@
+export interface SectorDetail {
+  time: string | null;
+  value: number | null;
+  personal_fastest: boolean;
+  overall_fastest: boolean;
+  segment_count: number | null;
+}
+
+export interface SpeedTrap {
+  speed: number | null;
+  personal_fastest: boolean;
+  overall_fastest: boolean;
+}
+
+export interface LiveStint {
+  compound: string | null;
+  laps: number | null;
+  new: boolean | null;
+  tyre_age_at_start: number | null;
+  tyre_not_changed: boolean;
+}
+
+export interface TrackStatus {
+  status: string | null;
+  message: string | null;
+  code?: string | null;
+}
+
 export interface DriverPosition {
   position: number;
   driver_number: number;
@@ -13,12 +41,26 @@ export interface DriverPosition {
   last_lap?: string | null;
   /** Current tyre compound: "SOFT", "MEDIUM", "HARD", "INTER", "WET" */
   tyre?: string | null;
-  /** Tyre strategy: array of stints e.g. [{ compound, laps }] */
+  /** Full stint history from live feed */
+  stints?: LiveStint[];
+  /** Tyre strategy: array of stints e.g. [{ compound, laps }] (legacy/OpenF1) */
   tyre_stints?: { compound: string; laps: number }[];
   /** Number of pit stops */
   pit_stops?: number | null;
   /** Current lap number */
   lap_number?: number | null;
+  /** Tyre age in laps on current set */
+  tyre_age?: number | null;
+  /** Currently in pit lane */
+  in_pit?: boolean;
+  /** Driver status: OK | RETIRED | STOPPED | OUT */
+  driver_status?: string;
+  /** Rich sector times from FastF1 live feed */
+  sector_details?: (SectorDetail | null)[];
+  /** Speed trap values keyed by I1/I2/FL/ST */
+  speeds?: Record<string, SpeedTrap>;
+  /** Delta to fastest lap in session */
+  delta_to_best?: number | null;
   sector_delta?: string;
   pit_status?: string;
 }
@@ -51,6 +93,30 @@ export interface WeekendSession {
   date_end?: string | null;
 }
 
+export interface RaceControlMessage {
+  category: string | null;
+  flag: string | null;
+  message: string;
+  lap_number: number | null;
+  driver_number?: number | null;
+  timestamp?: string | null;
+}
+
+export interface WeatherData {
+  air_temperature: number | null;
+  track_temperature: number | null;
+  humidity: number | null;
+  pressure: number | null;
+  wind_speed: number | null;
+  wind_direction: number | null;
+  rainfall: number | null;
+}
+
+export interface LapCount {
+  current: number | null;
+  total: number | null;
+}
+
 export interface DashboardData {
   session: DashboardSession;
   leaderboard: DriverPosition[];
@@ -61,6 +127,11 @@ export interface DashboardData {
   data_health?: 'healthy' | 'degraded' | 'offline';
   /** True when OpenF1 API is locked during a live session (unauthenticated access gated) */
   api_locked?: boolean;
+  track_status?: TrackStatus | null;
+  session_remaining?: string | null;
+  lap_count?: LapCount | null;
+  weather?: WeatherData | null;
+  race_control?: RaceControlMessage[];
   warnings?: string[];
 }
 

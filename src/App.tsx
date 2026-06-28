@@ -100,6 +100,11 @@ function App() {
     nextSession,
     weekendSchedule,
     apiLocked,
+    trackStatus,
+    sessionRemaining,
+    lapCount,
+    weather,
+    raceControl,
   } = state;
   const isLive = liveStatus === 'LIVE';
   const [latestCompletedSession, setLatestCompletedSession] = useState<DashboardSession | null>(null);
@@ -425,7 +430,16 @@ function App() {
 
                   {visibleHudWidgets.live_race_telemetry && viewMode === 'LIVE' && (
                   <div className="glass-panel" style={{ padding: '0.9rem' }}>
-                    <LiveRaceTelemetryPanel nextSession={nextSchedule} compact />
+                    <LiveRaceTelemetryPanel
+                      nextSession={nextSchedule}
+                      compact
+                      trackStatus={trackStatus}
+                      sessionRemaining={sessionRemaining}
+                      lapCount={lapCount}
+                      weather={weather}
+                      raceControl={raceControl}
+                      liveStatus={liveStatus}
+                    />
                   </div>
                   )}
 
@@ -484,7 +498,15 @@ function App() {
 
                   {visibleHudWidgets.live_race_telemetry && viewMode === 'LIVE' && (
                   <DraggableWidget key={`live_race_telemetry-${layoutResetKey}`} id="live_race_telemetry" title="LIVE RACE TELEMETRY" defaultX={760} defaultY={80} width={560} defaultHeight={620} minWidth={400} minHeight={360} onClose={() => updateHudVisibility('live_race_telemetry', false)}>
-                    <LiveRaceTelemetryPanel nextSession={nextSchedule} />
+                    <LiveRaceTelemetryPanel
+                      nextSession={nextSchedule}
+                      trackStatus={trackStatus}
+                      sessionRemaining={sessionRemaining}
+                      lapCount={lapCount}
+                      weather={weather}
+                      raceControl={raceControl}
+                      liveStatus={liveStatus}
+                    />
                   </DraggableWidget>
                   )}
 
