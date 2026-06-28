@@ -255,6 +255,7 @@ function addPriorSessionSignals(
 function sessionLabel(id: string) {
   if (id === 'practice1') return 'Free Practice 1';
   if (id === 'practice2') return 'Free Practice 2';
+  if (id === 'practice3') return 'Free Practice 3';
   if (id === 'sprintQualifying') return 'Sprint Qualifying';
   if (id === 'sprint') return 'Sprint';
   if (id === 'qualifying') return 'Qualifying';
@@ -268,6 +269,7 @@ function weekendLabel(raceName: string) {
 function pickWeekendSession(sessions: OpenF1Session[], id: WeekendPrediction['id']) {
   if (id === 'practice1') return sessions.find((session) => session.session_name === 'Practice 1') ?? null;
   if (id === 'practice2') return sessions.find((session) => session.session_name === 'Practice 2') ?? null;
+  if (id === 'practice3') return sessions.find((session) => session.session_name === 'Practice 3') ?? null;
   if (id === 'sprintQualifying') return sessions.find((session) => session.session_name === 'Sprint Qualifying') ?? null;
   if (id === 'sprint') return sessions.find((session) => session.session_name === 'Sprint') ?? null;
   if (id === 'qualifying') return sessions.find((session) => session.session_name === 'Qualifying') ?? null;
@@ -379,6 +381,8 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
     withSourceTimeout(getNextSession(), null),
   ]);
 
+
+
   const meetingKey =
     allSessions.find((session) => meetingMatches(session, searchTerm))?.meeting_key ??
     nextSession?.meeting_key ??
@@ -388,6 +392,8 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
   const weekendSessions = allSessions
     .filter((session) => meetingKey !== null && session.meeting_key === meetingKey)
     .sort((a, b) => Date.parse(a.date_start) - Date.parse(b.date_start));
+
+
 
   const raceSession = pickWeekendSession(weekendSessions, 'race') ?? nextRace;
   const raceName = raceSession?.circuit_short_name
@@ -431,7 +437,7 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
   if (!baselineScores.size) {
     factors.push('No live or historical race data available. Predictions cannot be generated.');
     sources.push('Data source unavailable');
-    const fallbackSessionIds = ['practice1', 'practice2', 'sprintQualifying', 'sprint', 'qualifying', 'race'];
+    const fallbackSessionIds = ['practice1', 'practice2', 'practice3', 'sprintQualifying', 'sprint', 'qualifying', 'race'];
     return {
       title: `${raceLabel} Weekend Prediction Studio`,
       raceName,
@@ -478,7 +484,7 @@ export async function buildPredictionForecast(request: PredictionForecastRequest
     };
   }
 
-  const sessionIds = ['practice1', 'practice2', 'sprintQualifying', 'sprint', 'qualifying', 'race'];
+  const sessionIds = ['practice1', 'practice2', 'practice3', 'sprintQualifying', 'sprint', 'qualifying', 'race'];
   const sessionsById = new Map(sessionIds.map((id) => [id, pickWeekendSession(weekendSessions, id)]));
   const startedSessions = [...sessionsById.values()]
     .filter((session): session is OpenF1Session => Boolean(session))

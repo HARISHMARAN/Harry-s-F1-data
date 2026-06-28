@@ -10,8 +10,8 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url);
   const grandPrix = url.searchParams.get('grandPrix') ?? undefined;
-  const yearParam = Number(url.searchParams.get('year'));
-  const year = Number.isFinite(yearParam) ? yearParam : undefined;
+  const yearParam = url.searchParams.get('year');
+  const year = yearParam ? Number(yearParam) : new Date().getUTCFullYear();
 
   try {
     const forecast = await buildPredictionForecast({ grandPrix, year });
