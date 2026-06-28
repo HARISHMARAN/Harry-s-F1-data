@@ -39,6 +39,7 @@ async function main() {
     ['/api/replay/2025/1', 'application/json'],
     ['/api/telemetry', 'application/json'],
     ['/api/standings', 'application/json'],
+    ['/api/schedule/weekend', 'application/json'],
   ];
 
   for (const [path, contentType] of checks) {

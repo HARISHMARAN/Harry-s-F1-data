@@ -15,6 +15,7 @@ import NextRaceIntelligence from './components/NextRaceIntelligence';
 import LiveRaceTelemetryPanel from './components/LiveRaceTelemetryPanel';
 import LiveDriversChampionship from './components/championships/LiveDriversChampionship';
 import LiveConstructorsChampionship from './components/championships/LiveConstructorsChampionship';
+import RaceHubDashboard from './components/RaceHubDashboard';
 import NewsView from './components/NewsView';
 import ChatView from './components/chat/ChatView';
 import { AlertCircle } from 'lucide-react';
@@ -402,6 +403,17 @@ function App() {
                 </div>
               </div>
             )}
+            {/* RACE HUB DASHBOARD — championship standings + next race countdown */}
+            <div style={{ pointerEvents: 'auto', padding: '0 1rem', marginBottom: '1.5rem' }}>
+              <RaceHubDashboard
+                drivers={championships?.drivers ?? []}
+                constructors={championships?.constructors ?? []}
+                season={championships?.season ?? new Date().getFullYear().toString()}
+                round={championships?.round ?? '0'}
+                standingsLoading={championshipsLoading}
+              />
+            </div>
+
             {/* HUD WIDGETS LAYER */}
             <div style={{ pointerEvents: 'auto' }}>
               {!isNarrowViewport && (

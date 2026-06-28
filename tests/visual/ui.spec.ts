@@ -63,9 +63,40 @@ const standingsPayload = {
   warnings: ['Standings stubbed for visual snapshot.'],
 };
 
+const weekendPayload = {
+  sessions: [
+    {
+      session_key: 99901,
+      session_name: 'Practice 1',
+      session_type: 'Practice',
+      date_start: '2026-05-01T11:30:00+00:00',
+      date_end: '2026-05-01T12:30:00+00:00',
+      country_name: 'United States',
+      location: 'Miami Gardens',
+      circuit_short_name: 'Miami',
+      meeting_key: 9999,
+    },
+    {
+      session_key: 99902,
+      session_name: 'Race',
+      session_type: 'Race',
+      date_start: '2026-05-03T20:00:00+00:00',
+      date_end: '2026-05-03T22:00:00+00:00',
+      country_name: 'United States',
+      location: 'Miami Gardens',
+      circuit_short_name: 'Miami',
+      meeting_key: 9999,
+    },
+  ],
+  grand_prix_name: 'Miami Grand Prix',
+  country_name: 'United States',
+  location: 'Miami Gardens',
+};
+
 const mockVariableRaceData = async (page: Page) => {
   await page.route('**/api/telemetry', (route) => route.fulfill({ json: telemetryStandbyPayload }));
   await page.route('**/api/schedule/next-race', (route) => route.fulfill({ json: nextRacePayload }));
+  await page.route('**/api/schedule/weekend', (route) => route.fulfill({ json: weekendPayload }));
   await page.route('**/api/standings*', (route) => route.fulfill({ json: standingsPayload }));
 };
 
